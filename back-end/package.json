@@ -1,0 +1,25 @@
+{
+  "name": "econexa-backend",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+  "dev": "tsx watch src/main.ts",
+  "build": "tsc && tsc-paths -p tsconfig.json -s src -d dist",
+  "start": "node dist/main.js",
+  "test": "vitest run",
+  "test:watch": "vitest"
+},
+  "dependencies": {
+    "@fastify/autoload": "^6.5.0",
+    "@fastify/compress": "^9.1.1",
+    "@fastify/cors": "^11.3.0",
+    "dotenv": "^17.4.2",
+    "fastify": "^5.11.2",
+    "pg": "^8.22.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/pg": "^8.20.4"
+  }
+}
