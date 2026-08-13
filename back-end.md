@@ -9,9 +9,22 @@ O backend precisa ser simples, previsível e rápido para entregar:
 - cadastro de problemas;
 - apoio da comunidade;
 - organização de mutirões e eventos;
-- notificações básicas.
+- notificações básicas;
+- integração com IA via Google API quando necessário.
 
-## 2. Padrão de organização
+## 2. Variáveis de ambiente
+
+O backend usa `dotenv` e valida com `zod`. As variáveis obrigatórias são:
+
+- `NODE_ENV`: `development`, `test` ou `production`
+- `PORT`: porta do servidor
+- `DATABASE_URL`: conexão Postgres
+- `CORS_ORIGINS`: origens permitidas separadas por vírgula
+- `GOOGLE_API_KEY`: chave da API gratuita do Google para IA
+
+O arquivo de exemplo está em `back-end/.env.example`.
+
+## 3. Padrão de organização
 
 Use a estrutura abaixo para cada módulo principal:
 
@@ -31,34 +44,33 @@ src/modules/problems/
 - Repository: concentra o acesso ao banco.
 - Se uma ação ficar grande, divida em services menores, mas mantenha a ideia central do módulo.
 
-## 3. Exemplo de fluxo de problema
+## 4. Fluxo de integração com Google AI
 
-### Requisição
-POST /problems
+1. O frontend envia uma solicitação ao backend.
+2. O backend valida e autoriza a requisição.
+3. O backend chama a API do Google usando `GOOGLE_API_KEY`.
+4. O backend devolve o resultado ao cliente.
 
-### Fluxo
-1. Controller recebe o corpo.
-2. Service valida dados e regras de negócio.
-3. Repository salva o problema.
-4. O sistema publica uma tarefa assíncrona para processar mídia ou notificação, se necessário.
+Use este padrão para:
+- gerar textos e resumos;
+- classificar problemas;
+- sugerir categorias ou respostas automáticas;
+- enriquecer notificações.
 
-### Exemplo de service
+### Exemplo de chamada
 
 ```ts
-export class CreateProblemService {
-  constructor(private repository: IProblemRepository) {}
-
-  async execute(input: { title: string; description?: string; lat: number; lng: number }) {
-    if (!input.title || input.title.trim().length < 5) {
-      throw new Error('Título muito curto');
-    }
-
-    return this.repository.create(input);
-  }
-}
+const response = await fetch('https://googleapis.com/v1/your-endpoint', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${env.GOOGLE_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({ prompt: '...' }),
+});
 ```
 
-## 4. Regras de autenticação e perfil
+## 5. Regras de autenticação e perfil
 
 O sistema de login deve ser simples no MVP:
 - email e senha
@@ -73,7 +85,7 @@ Estrutura recomendada:
 
 Não comece com um sistema de permissões muito complexo. Papel + regra simples resolve bem para a primeira versão.
 
-## 5. Fila para tarefas assíncronas
+## 6. Fila para tarefas assíncronas
 
 A fila deve ser usada para tarefas que não precisam bloquear a resposta do usuário.
 
@@ -94,7 +106,7 @@ Cliente -> API
 Worker -> processa tarefa em segundo plano
 ```
 
-## 6. Cron para tarefas recorrentes
+## 7. Cron para tarefas recorrentes
 
 Use cron apenas para tarefas periódicas e previsíveis.
 
@@ -106,14 +118,23 @@ Use cron apenas para tarefas periódicas e previsíveis.
 ### Regra prática
 - se a tarefa precisa ser executada no tempo certo, mas não precisa acontecer na hora da ação, use cron.
 
-## 7. Boas práticas para não exagerar
+## 8. Bibliotecas recomendadas
+
+- `zod` para validação de `env` e payloads;
+- `fastify` para API leve;
+- `fastify-autoload` para rotas modulares;
+- `pg` para Postgres;
+- `@fastify/cors` para controle de origens;
+- `dotenv` para carregar variáveis de ambiente.
+
+## 9. Boas práticas para não exagerar
 
 - não crie fila para tudo;
 - não use cron para tarefas de resposta imediata;
 - mantenha um worker simples;
 - agrupe tarefas por contexto, não por funcionalidade mínima.
 
-## 8. Módulos iniciais sugeridos
+## 10. Módulos iniciais sugeridos
 
 - auth
 - problems

@@ -6,6 +6,7 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(5000),
   DATABASE_URL: z.string(),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
+  GOOGLE_API_KEY: z.string().nonempty(),
 })
 
 const _env = envSchema.safeParse(process.env);
