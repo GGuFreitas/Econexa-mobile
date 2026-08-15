@@ -1,9 +1,8 @@
-import { env } from "@config/env.js";
-import { app } from "./app.js";
-
+import { env } from '@config/env.js';
+import { app } from './app.js';
 
 async function bootstrap() {
-  try{
+  try {
     await app.listen({ port: env.PORT, host: '0.0.0.0' });
     console.log(`Servidor Mutira rodando em http://localhost:${env.PORT}`);
   } catch (err) {
@@ -11,3 +10,5 @@ async function bootstrap() {
     process.exit(1);
   }
 }
+
+void bootstrap();
