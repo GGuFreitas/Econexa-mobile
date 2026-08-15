@@ -1,23 +1,74 @@
-version: '3.8'
+version: '3.9'
 
 services:
   postgres:
-    image: postgis/postgis:15-3.3
-    container_name: mutira-postgres
+    image: postgres:15-alpine
+    container_name: econexa-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: senha_secreta
       POSTGRES_DB: mutira_db
     ports:
-      - "5432:5432"
+      - '5432:5432'
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+      - ./back-end/src/config/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U admin -d mutira_db']
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
-    container_name: mutira-redis
+    container_name: econexa-redis
+    restart: unless-stopped
     ports:
-      - "6379:6379"
+      - '6379:6379'
+
+  backend:
+    build:
+      context: ./back-end
+      dockerfile: Dockerfile
+    container_name: econexa-backend
+    restart: unless-stopped
+    env_file:
+      - ./back-end/.env
+    environment:
+      NODE_ENV: development
+      PORT: 5000
+      DATABASE_URL: postgresql://admin:senha_secreta@postgres:5432/mutira_db
+      CORS_ORIGINS: http://localhost:19006,http://localhost:3000
+      JWT_SECRET: changeme_super_secret_key_123
+      GOOGLE_API_KEY: dev-google-key
+    ports:
+      - '5000:5000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./back-end:/app
+      - /app/node_modules
+
+  mobile:
+    build:
+      context: ./mobile
+      dockerfile: Dockerfile
+    container_name: econexa-mobile
+    restart: unless-stopped
+    working_dir: /app
+    ports:
+      - '19006:19006'
+      - '19001:19001'
+      - '19002:19002'
+    environment:
+      EXPO_PUBLIC_API_URL: http://localhost:5000/api
+    volumes:
+      - ./mobile:/app
+      - /app/node_modules
+    depends_on:
+      - backend
 
 volumes:
-  pgdata:
+  postgres_data:
