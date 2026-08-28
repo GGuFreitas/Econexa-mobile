@@ -26,23 +26,25 @@ O arquivo de exemplo está em `back-end/.env.example`.
 
 ## 3. Padrão de organização
 
-Use a estrutura abaixo para cada módulo principal:
+Monolito modular por feature. Estrutura real do projeto:
 
 ```text
-src/modules/problems/
-├── problems.controller.ts
-├── problems.repository.ts
-└── services/
-    ├── CreateProblem.service.ts
-    ├── SupportProblem.service.ts
-    └── UpdateProblemStatus.service.ts
+src/
+├── config/      # env, pool do banco, knexfile, migrations
+├── shared/      # primitivos: errors, auth, http, validate, cache, queue
+├── common/      # blocos reutilizáveis: auth/, imagens/, abilities.ts
+├── features/    # domínio: problemas, peticoes, mutiroes, apoios, eventos, usuarios, regioes, niveis
+├── routes/      # fios HTTP por feature (routes/<feature>/index.ts)
+└── workers/     # reservado para BullMQ (fase futura)
 ```
 
 ### Regras
-- Controller: não faz regra, só recebe e responde.
-- Service: concentra a regra de negócio.
-- Repository: concentra o acesso ao banco.
-- Se uma ação ficar grande, divida em services menores, mas mantenha a ideia central do módulo.
+- `routes/<feature>/index.ts`: adaptador HTTP — valida com zod (`@shared/validate`), chama o handler, responde com `ok/created` (`@shared/http`). Nada de regra de negócio.
+- `features/<feature>/`: regra de negócio em handlers funcionais (`handler.ts` + `.sql.ts`). Sem classes, sem DI, sem framework.
+- `common/`: building blocks transversais (auth, imagens, permissões). Não são features de domínio.
+- `shared/`: utilidades sem dependência de domínio.
+- Seams para evoluir sem reescrita: `shared/cache.ts` (interface `Cache` → `MemoryCache` hoje, Redis depois) e `shared/queue.ts` (interface `Queue` → `SyncQueue` hoje, BullMQ depois).
+- Cross-feature leve: chama o `.sql` de outra feature. Cross-feature pesada: `queue.enqueue(...)`. Nenhuma feature importa o `routes/` de outra.
 
 ## 4. Fluxo de integração com Google AI
 
@@ -120,12 +122,16 @@ Use cron apenas para tarefas periódicas e previsíveis.
 
 ## 8. Bibliotecas recomendadas
 
-- `zod` para validação de `env` e payloads;
-- `fastify` para API leve;
-- `fastify-autoload` para rotas modulares;
-- `pg` para Postgres;
+- `zod` (v4) para validação de `env` e payloads;
+- `fastify` (v5) para API leve;
 - `@fastify/cors` para controle de origens;
-- `dotenv` para carregar variáveis de ambiente.
+- `@fastify/compress` para compressão;
+- `pg` para Postgres (pool em `config/database.ts`);
+- `knex` para migrations;
+- `@node-rs/argon2` para hash de senha (substitui bcrypt);
+- `jsonwebtoken` para tokens;
+- `vitest` para testes;
+- `tsx` para rodar TS em dev.
 
 ## 9. Boas práticas para não exagerar
 
@@ -136,11 +142,13 @@ Use cron apenas para tarefas periódicas e previsíveis.
 
 ## 10. Módulos iniciais sugeridos
 
-- auth
-- problems
-- supports
+- auth (em `common/auth`)
+- problemas
+- peticoes
+- apoios (antes "supports")
 - mutiroes
-- events
-- notifications
+- eventos
+- regioes
+- niveis
 
-O MVP pode começar com auth, problems, supports e mutiroes. Os demais podem entrar depois, sem perder a coerência do sistema.
+O MVP pode começar com auth, problemas, apoios e mutiroes. Os demais podem entrar depois, sem perder a coerência do sistema.
