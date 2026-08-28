@@ -7,7 +7,7 @@ import {
   criarProblemaSchema,
   listarProblemasQuerySchema,
 } from '@common/problemas/problemas.schemas.js';
-import { criarProblema, listarProblemas, obterProblema } from '@common/problemas/problemas.handler.js';
+import { criarProblema, listarProblemas, obterProblema, estatisticasProblemas, tendenciasProblemasHandler } from '@common/problemas/problemas.handler.js';
 
 export async function problemasRoutes(app: FastifyInstance): Promise<void> {
   app.post('/', { preHandler: requireAuth }, async (request, reply) => {
@@ -20,6 +20,18 @@ export async function problemasRoutes(app: FastifyInstance): Promise<void> {
     const query = parse(listarProblemasQuerySchema, request.query);
     const problemas = await listarProblemas(query);
     return ok(reply, problemas);
+  });
+
+  app.get('/estatisticas', async (request, reply) => {
+    const query = parse(listarProblemasQuerySchema, request.query);
+    const stats = await estatisticasProblemas(query);
+    return ok(reply, stats);
+  });
+
+  app.get('/tendencias', async (request, reply) => {
+    const query = parse(listarProblemasQuerySchema, request.query);
+    const tendencias = await tendenciasProblemasHandler(query);
+    return ok(reply, tendencias);
   });
 
   app.get('/:id', async (request, reply) => {

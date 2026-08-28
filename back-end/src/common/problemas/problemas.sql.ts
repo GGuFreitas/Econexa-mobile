@@ -102,3 +102,80 @@ export async function incrementarVisualizacoes(id: number): Promise<void> {
     [id],
   );
 }
+
+export interface FiltroAgregacao {
+  status?: string;
+  tipo?: string;
+  escopo?: string;
+  causaId?: number;
+}
+
+function buildWhere(query: FiltroAgregacao): { clause: string; params: unknown[] } {
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  if (query.status) {
+    params.push(query.status);
+    conditions.push(`status = $${params.length}`);
+  }
+  if (query.tipo) {
+    params.push(query.tipo);
+    conditions.push(`tipo = $${params.length}`);
+  }
+  if (query.escopo) {
+    params.push(query.escopo);
+    conditions.push(`escopo = $${params.length}`);
+  }
+  if (query.causaId) {
+    params.push(query.causaId);
+    conditions.push(`causa_id = $${params.length}`);
+  }
+  const clause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { clause, params };
+}
+
+export async function contarPorCausa(
+  query: FiltroAgregacao,
+): Promise<{ causa_id: number; total: number }[]> {
+  const { clause, params } = buildWhere(query);
+  const result = await dbPool.query(
+    `SELECT causa_id, COUNT(*)::int AS total FROM problemas ${clause} GROUP BY causa_id ORDER BY total DESC`,
+    params,
+  );
+  return result.rows;
+}
+
+export async function contarPorTipo(
+  query: FiltroAgregacao,
+): Promise<{ tipo: string; total: number }[]> {
+  const { clause, params } = buildWhere(query);
+  const result = await dbPool.query(
+    `SELECT tipo, COUNT(*)::int AS total FROM problemas ${clause} GROUP BY tipo ORDER BY total DESC`,
+    params,
+  );
+  return result.rows;
+}
+
+export async function totalProblemas(query: FiltroAgregacao): Promise<number> {
+  const { clause, params } = buildWhere(query);
+  const result = await dbPool.query(
+    `SELECT COUNT(*)::int AS total FROM problemas ${clause}`,
+    params,
+  );
+  return Number(result.rows[0]?.total ?? 0);
+}
+
+export async function tendenciasProblemas(
+  query: FiltroAgregacao & { limite?: number },
+): Promise<Problema[]> {
+  const { clause, params } = buildWhere(query);
+  params.push(query.limite ?? 10);
+  const limitIdx = params.length;
+  const result = await dbPool.query(
+    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat
+     FROM problemas p ${clause}
+     ORDER BY p.cont_apoios_ponderados DESC, p.criado_em DESC
+     LIMIT $${limitIdx}`,
+    params,
+  );
+  return result.rows;
+}
