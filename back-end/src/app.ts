@@ -1,13 +1,9 @@
 import { env } from '@config/env.js';
-import fastifyAutoload from '@fastify/autoload';
 import fastifyCompress from '@fastify/compress';
 import fastifyCors from '@fastify/cors';
-import { errorHandler } from '@shared/errors/errorHandler.js';
+import { errorHandler } from '@shared/errors.js';
+import { registerRoutes } from '@routes/index.js';
 import fastify from 'fastify';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const app = fastify({
   trustProxy: true,
@@ -28,9 +24,11 @@ await app.register(fastifyCors, {
   },
 });
 
-await app.register(fastifyAutoload, {
-  dir: join(__dirname, 'routes'),
-  options: { prefix: '/api' },
-});
+await app.register(
+  async (api) => {
+    await registerRoutes(api);
+  },
+  { prefix: '/api' },
+);
 
 export { app };
