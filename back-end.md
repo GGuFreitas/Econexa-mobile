@@ -152,3 +152,14 @@ Use cron apenas para tarefas periódicas e previsíveis.
 - niveis
 
 O MVP pode começar com auth, problemas, apoios e mutiroes. Os demais podem entrar depois, sem perder a coerência do sistema.
+
+## 11. Módulo problemas (geoespacial)
+
+O módulo `problemas` é a espinha dorsal do mapa. Implementado em `features/problemas/` (handler + `.sql`) e exposto em `routes/problemas/`.
+
+- PostGIS obrigatório: o container do banco usa `postgis/postgis:15-3.4`; a migration `002` habilita `postgis` + `pgcrypto`.
+- `problemas.geom` é `geometry(Point, 4326)`; listagem por raio usa `ST_DWithin` e `ST_Distance` para ordenar por proximidade.
+- Coordenadas validadas contra o bbox do Brasil (lat −33.75..5.27, lng −73.99..−34.79).
+- `tipo` distingue `problema` | `ponto_positivo` | `cultural`; `status` segue o workflow `ativo → em_analise → encaminhado → resolvido / removido`.
+- `causas` fixas (Mobilidade, Infraestrutura, Poluição, Desmatamento, Cultura, Segurança, Saúde, Educação) + `tags` livres para filtro fino no mapa.
+- Contadores (`cont_apoios`, `cont_apoios_ponderados`, `cont_visualizacoes`) são preenchidos pelos módulos de apoio/visualização (PRs seguintes).
