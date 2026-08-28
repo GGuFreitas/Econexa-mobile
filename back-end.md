@@ -171,3 +171,10 @@ O módulo `problemas` é a espinha dorsal do mapa. Implementado em `features/pro
 - `GET /problemas/tendencias` — top por `cont_apoios_ponderados` (`limite`, default 10) + filtros.
 - `GET /problemas/:id` — detalhe (incrementa `cont_visualizacoes`).
 - `POST/DELETE /problemas/:id/apoios` (auth) — apoio idempotente ponderado por `peso_voto`.
+- `POST /problemas/:id/denuncias` (auth, rate-limit) — denúncia de conteúdo (`motivo` ∈ spam|conteudo_inadequado|duplicado|outro).
+- `GET /problemas/:id/denuncias` (auth) — lista denúncias (moderação).
+
+### 11.2 Anti-fake / anti-spam
+- **Dedupe de coordenadas**: `criarProblema` verifica se já existe problema da mesma `causa_id` e `tipo` num raio de 15m (`ST_DWithin`); se sim, retorna o existente em vez de criar duplicata.
+- **Rate-limit**: primitiva em `shared/ratelimit.ts` (janela fixa em memória; trocar por Redis depois). Aplicada em `POST /problemas` (5/min por usuário) e `POST /problemas/:id/denuncias` (3/min por usuário); estouro responde `429`.
+- **Denúncias**: tabela `problema_denuncias` (FK problema/usuário, `motivo`); alimenta moderação e o futuro escalonamento.

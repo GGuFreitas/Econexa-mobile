@@ -13,6 +13,19 @@ export async function criarProblema(input: CriarProblemaInput): Promise<Problema
     throw new AppError('Máximo de 10 tags.', 400);
   }
 
+  if (input.lat != null && input.lng != null) {
+    const duplicado = await sql.findNearbyProblema(
+      input.lat,
+      input.lng,
+      15,
+      input.causaId,
+      input.tipo ?? 'problema',
+    );
+    if (duplicado) {
+      return duplicado;
+    }
+  }
+
   const problema = await sql.insertProblema({
     usuarioId: input.usuarioId,
     titulo: input.titulo.trim(),

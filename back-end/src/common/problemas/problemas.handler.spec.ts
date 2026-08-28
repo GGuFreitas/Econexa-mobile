@@ -12,9 +12,11 @@ describe('problemas handlers', () => {
   beforeEach(() => mockQuery.mockReset());
 
   it('cria um problema com geom a partir de lat/lng', async () => {
-    mockQuery.mockResolvedValueOnce({
-      rows: [{ id: 1, titulo: 'Buraco na via', tipo: 'problema', status: 'ativo', lat: -23.5, lng: -46.6 }],
-    });
+    mockQuery
+      .mockResolvedValueOnce({ rows: [] }) // findNearbyProblema -> sem duplicado
+      .mockResolvedValueOnce({
+        rows: [{ id: 1, titulo: 'Buraco na via', tipo: 'problema', status: 'ativo', lat: -23.5, lng: -46.6 }],
+      });
 
     const problema = await criarProblema({
       usuarioId: 1,
@@ -25,9 +27,25 @@ describe('problemas handlers', () => {
     });
 
     expect(problema.id).toBe(1);
-    const call = mockQuery.mock.calls[0][0] as string;
+    const call = mockQuery.mock.calls[1][0] as string;
     expect(call).toContain('ST_MakePoint');
     expect(call).toContain('ST_SetSRID');
+  });
+
+  it('dedupe: retorna problema existente proximo em vez de criar novo', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 99, titulo: 'existente' }] }); // findNearbyProblema
+
+    const problema = await criarProblema({
+      usuarioId: 1,
+      titulo: 'Outro buraco',
+      causaId: 1,
+      lat: -23.5,
+      lng: -46.6,
+    });
+
+    expect(problema.id).toBe(99);
+    expect(mockQuery.mock.calls.length).toBe(1);
+    expect(mockQuery.mock.calls[0][0]).toContain('ST_DWithin');
   });
 
   it('lista problemas por proximidade (ST_DWithin)', async () => {
