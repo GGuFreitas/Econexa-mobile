@@ -162,4 +162,12 @@ O módulo `problemas` é a espinha dorsal do mapa. Implementado em `features/pro
 - Coordenadas validadas contra o bbox do Brasil (lat −33.75..5.27, lng −73.99..−34.79).
 - `tipo` distingue `problema` | `ponto_positivo` | `cultural`; `status` segue o workflow `ativo → em_analise → encaminhado → resolvido / removido`.
 - `causas` fixas (Mobilidade, Infraestrutura, Poluição, Desmatamento, Cultura, Segurança, Saúde, Educação) + `tags` livres para filtro fino no mapa.
-- Contadores (`cont_apoios`, `cont_apoios_ponderados`, `cont_visualizacoes`) são preenchidos pelos módulos de apoio/visualização (PRs seguintes).
+- Contadores (`cont_apoios`, `cont_apoios_ponderados`, `cont_visualizacoes`): o apoio já está implementado em `common/apoios/` (idempotente via PK `(problema_id, usuario_id)` + `ON CONFLICT DO NOTHING`; incrementa contadores só quando a linha é nova, ponderado pelo `peso_voto` do usuário). Rotas: `POST/DELETE /problemas/:id/apoios`.
+
+### 11.1 Endpoints
+- `POST /problemas` (auth) — cria problema (título obrigatório, ≤10 tags, bbox Brasil).
+- `GET /problemas` — lista por proximidade (`lat`,`lng`,`raio`) ou por peso; filtros `status`, `tipo` (`problema`|`ponto_positivo`|`cultural`), `escopo`, `causaId`, `tags` (array, operador `&&`).
+- `GET /problemas/estatisticas` — agregações por causa e por tipo (+ total), respeitando os filtros; alimenta filtros do mapa.
+- `GET /problemas/tendencias` — top por `cont_apoios_ponderados` (`limite`, default 10) + filtros.
+- `GET /problemas/:id` — detalhe (incrementa `cont_visualizacoes`).
+- `POST/DELETE /problemas/:id/apoios` (auth) — apoio idempotente ponderado por `peso_voto`.

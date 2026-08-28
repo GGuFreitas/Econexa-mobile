@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { dbPool } from '@config/database.js';
-import { criarProblema, listarProblemas, obterProblema } from './problemas.handler.js';
+import { criarProblema, listarProblemas, obterProblema, estatisticasProblemas } from './problemas.handler.js';
 
 vi.mock('@config/database.js', () => ({
   dbPool: { query: vi.fn() },
@@ -45,5 +45,35 @@ describe('problemas handlers', () => {
     mockQuery.mockResolvedValueOnce({ rows: [] });
 
     await expect(obterProblema(999)).rejects.toThrow('Problema não encontrado.');
+  });
+
+  it('filtra por tipo (ponto_positivo/cultural)', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 5, tipo: 'cultural' }] });
+
+    const lista = await listarProblemas({ tipo: 'cultural' });
+
+    expect(lista[0].tipo).toBe('cultural');
+    expect(mockQuery.mock.calls[0][0]).toContain('p.tipo =');
+  });
+
+  it('filtra por tags livres (operador &&)', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [] });
+
+    await listarProblemas({ tags: ['lixo', 'saude'] });
+
+    expect(mockQuery.mock.calls[0][0]).toContain('p.tags &&');
+  });
+
+  it('agrega estatisticas por causa e tipo', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ causa_id: 2, total: 5 }] })
+      .mockResolvedValueOnce({ rows: [{ tipo: 'problema', total: 5 }] })
+      .mockResolvedValueOnce({ rows: [{ total: 5 }] });
+
+    const stats = await estatisticasProblemas({});
+
+    expect(stats.total).toBe(5);
+    expect(stats.porCausa[0].causa_id).toBe(2);
+    expect(stats.porTipo[0].tipo).toBe('problema');
   });
 });

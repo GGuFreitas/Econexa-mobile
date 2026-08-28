@@ -47,3 +47,22 @@ export async function obterProblema(id: number): Promise<Problema> {
   await sql.incrementarVisualizacoes(id);
   return problema;
 }
+
+export async function estatisticasProblemas(query: sql.FiltroAgregacao): Promise<{
+  total: number;
+  porCausa: { causa_id: number; total: number }[];
+  porTipo: { tipo: string; total: number }[];
+}> {
+  const [porCausa, porTipo, total] = await Promise.all([
+    sql.contarPorCausa(query),
+    sql.contarPorTipo(query),
+    sql.totalProblemas(query),
+  ]);
+  return { total, porCausa, porTipo };
+}
+
+export async function tendenciasProblemasHandler(
+  query: sql.FiltroAgregacao & { limite?: number },
+): Promise<Problema[]> {
+  return sql.tendenciasProblemas(query);
+}
