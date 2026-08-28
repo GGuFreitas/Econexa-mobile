@@ -96,6 +96,24 @@ export async function getProblemaById(id: number): Promise<Problema | null> {
   return result.rows[0] ?? null;
 }
 
+export async function findNearbyProblema(
+  lat: number,
+  lng: number,
+  raioMetros: number,
+  causaId: number,
+  tipo: string,
+): Promise<Problema | null> {
+  const result = await dbPool.query(
+    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat
+     FROM problemas p
+     WHERE p.causa_id = $4 AND p.tipo = $5
+       AND ST_DWithin(p.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326), $3)
+     LIMIT 1`,
+    [lng, lat, raioMetros, causaId, tipo],
+  );
+  return result.rows[0] ?? null;
+}
+
 export async function incrementarVisualizacoes(id: number): Promise<void> {
   await dbPool.query(
     `UPDATE problemas SET cont_visualizacoes = cont_visualizacoes + 1 WHERE id = $1`,
