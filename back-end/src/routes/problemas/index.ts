@@ -8,6 +8,7 @@ import {
   listarProblemasQuerySchema,
 } from '@common/problemas/problemas.schemas.js';
 import { criarProblema, listarProblemas, obterProblema, estatisticasProblemas, tendenciasProblemasHandler } from '@common/problemas/problemas.handler.js';
+import { apoiarProblema, desapoiarProblema } from '@common/apoios/apoios.handler.js';
 
 export async function problemasRoutes(app: FastifyInstance): Promise<void> {
   app.post('/', { preHandler: requireAuth }, async (request, reply) => {
@@ -41,5 +42,23 @@ export async function problemasRoutes(app: FastifyInstance): Promise<void> {
     }
     const problema = await obterProblema(id);
     return ok(reply, problema);
+  });
+
+  app.post('/:id/apoios', { preHandler: requireAuth }, async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    if (!Number.isInteger(id)) {
+      throw new AppError('ID inválido.', 400);
+    }
+    const resultado = await apoiarProblema(id, request.user!.id);
+    return ok(reply, resultado);
+  });
+
+  app.delete('/:id/apoios', { preHandler: requireAuth }, async (request, reply) => {
+    const id = Number((request.params as { id: string }).id);
+    if (!Number.isInteger(id)) {
+      throw new AppError('ID inválido.', 400);
+    }
+    const resultado = await desapoiarProblema(id, request.user!.id);
+    return ok(reply, resultado);
   });
 }
