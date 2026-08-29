@@ -178,3 +178,20 @@ O módulo `problemas` é a espinha dorsal do mapa. Implementado em `features/pro
 - **Dedupe de coordenadas**: `criarProblema` verifica se já existe problema da mesma `causa_id` e `tipo` num raio de 15m (`ST_DWithin`); se sim, retorna o existente em vez de criar duplicata.
 - **Rate-limit**: primitiva em `shared/ratelimit.ts` (janela fixa em memória; trocar por Redis depois). Aplicada em `POST /problemas` (5/min por usuário) e `POST /problemas/:id/denuncias` (3/min por usuário); estouro responde `429`.
 - **Denúncias**: tabela `problema_denuncias` (FK problema/usuário, `motivo`); alimenta moderação e o futuro escalonamento.
+
+## 12. Módulo eventos (mutirões)
+
+Mutirões e eventos cívicos. Implementado em `common/eventos/` e exposto em `routes/eventos/`.
+
+- `eventos` (geom `Point` opcional, `tipo` ∈ `mutirao|encontro|outro`, `status` ∈ `planejado|em_andamento|realizado|cancelado`).
+- `evento_problema` (PK `evento_id, problema_id`, `resolveu`): vincula um problema a um mutirão; se `resolveu=true`, o problema vai para `status='resolvido'`.
+- `evento_participantes` (PK `evento_id, usuario_id`): inscrições idempotentes (`ON CONFLICT DO NOTHING`).
+
+### 12.1 Endpoints
+- `POST /eventos` (auth) — cria evento (validação: título ≥3, bbox Brasil, `dataInicio` obrigatória).
+- `GET /eventos` — lista por proximidade (`lat`,`lng`,`raio`) ou data; filtros `status`, `tipo`, `causaId`.
+- `GET /eventos/:id` — detalhe.
+- `GET /eventos/:id/estatisticas` — `cont_participantes` e `problemas_vinculados`.
+- `POST /eventos/:id/problemas/:problemaId` (auth) — vincula problema (`body.resolveu` opcional).
+- `POST /eventos/:id/inscricoes` (auth) — inscreve (idempotente).
+- `DELETE /eventos/:id/inscricoes` (auth) — desinscreve.
