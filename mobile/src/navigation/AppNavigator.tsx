@@ -1,25 +1,99 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthGuard } from '@navigation/AuthGuard';
 import HomeScreen from '@features/home/screens/HomeScreen';
+import { CriarProblemaScreen } from '@features/problemas/screens/CriarProblemaScreen';
+import { DetalheProblemaScreen } from '@features/problemas/screens/DetalheProblemaScreen';
+import { FeedScreen } from '@features/problemas/screens/FeedScreen';
+import { PerfilScreen } from '@features/problemas/screens/PerfilScreen';
 
-function ProtectedHome() {
+export type RootStackParamList = {
+  Main: undefined;
+  CriarProblema: undefined;
+  DetalheProblema: { id: number };
+};
+
+type TabParamList = {
+  Mapa: undefined;
+  Feed: undefined;
+  Perfil: undefined;
+};
+
+const Tab = createBottomTabNavigator<TabParamList>();
+
+function MapaStack() {
+  return (
+    <Tab.Navigator screenOptions={{ headerShown: false }}>
+      <Tab.Screen name="Mapa">
+        {() => (
+          <AuthGuard>
+            <HomeScreen />
+          </AuthGuard>
+        )}
+      </Tab.Screen>
+      <Tab.Screen
+        name="Feed"
+        component={FeedGuarded}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="format-list-bulleted" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tab.Screen
+        name="Perfil"
+        component={PerfilGuarded}
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="account" color={color} size={size} />
+          ),
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
+function FeedGuarded() {
   return (
     <AuthGuard>
-      <HomeScreen />
+      <FeedScreen />
     </AuthGuard>
   );
 }
 
-export type RootStackParamList = {
-  Home: undefined;
-};
+function PerfilGuarded() {
+  return (
+    <AuthGuard>
+      <PerfilScreen />
+    </AuthGuard>
+  );
+}
+
+function CriarGuarded() {
+  return (
+    <AuthGuard>
+      <CriarProblemaScreen />
+    </AuthGuard>
+  );
+}
+
+function DetalheGuarded() {
+  return (
+    <AuthGuard>
+      <DetalheProblemaScreen />
+    </AuthGuard>
+  );
+}
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="Home" component={ProtectedHome} />
+      <Stack.Screen name="Main" component={MapaStack} />
+      <Stack.Screen name="CriarProblema" component={CriarGuarded} />
+      <Stack.Screen name="DetalheProblema" component={DetalheGuarded} />
     </Stack.Navigator>
   );
 }

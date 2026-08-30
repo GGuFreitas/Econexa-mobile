@@ -17,7 +17,7 @@ export default function LoginScreen() {
     async (data: { email: string; password: string }) => {
       try {
         await loginMutation.mutateAsync(data);
-        navigation.navigate('Home');
+        navigation.navigate('Main');
       } catch (error) {
         console.error('Erro ao logar', error);
       }
