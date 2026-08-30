@@ -11,7 +11,8 @@ import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
 import { causaList } from '../map/markerConfig';
-import type { CriarProblemaPayload } from '../types';
+import { uploadImagemProblema } from '../api/imagens';
+import type { CriarProblemaPayload, UploadFileInput } from '../types';
 
 const schema = z.object({
   titulo: z.string().min(3, 'Mínimo 3 caracteres').max(120),
@@ -31,6 +32,7 @@ interface ProblemFormProps {
 export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormProps) {
   const theme = useAppTheme();
   const [foto, setFoto] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const { control, handleSubmit, formState } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -63,7 +65,33 @@ export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormPro
     setFoto(manipulado.uri);
   };
 
-  const submit = (data: z.infer<typeof schema>) => {
+  const uploadFoto = async (): Promise<string | null> => {
+    if (!foto) return null;
+    setUploadProgress(0);
+    try {
+      const file: UploadFileInput = {
+        uri: foto,
+        name: `problema-${Date.now()}.jpg`,
+        type: 'image/jpeg',
+      };
+      const { url } = await uploadImagemProblema(0, { uri: foto, name: `problema-${Date.now()}.jpg`, type: 'image/jpeg' }, (p) => setUploadProgress(p));
+      setUploadProgress(null);
+      return url;
+    } catch (e) {
+      setUploadProgress(null);
+      Alert.alert('Erro no upload', 'Não foi possível enviar a imagem. Tente novamente.');
+      return null;
+    }
+  };
+
+  const submit = async (data: z.infer<typeof schema>) => {
+    let imagemUrl: string | null = null;
+    if (foto) {
+      const url = await uploadFoto();
+      if (!url) return;
+      imagemUrl = url;
+    }
+
     onSubmit({
       titulo: data.titulo,
       descricao: data.descricao || undefined,
@@ -73,8 +101,12 @@ export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormPro
       localNome: data.localNome || undefined,
       lat: coordenada.latitude,
       lng: coordenada.longitude,
+      imagens: imagemUrl ? [imagemUrl] : undefined,
     });
   };
+
+  const isUploading = uploadProgress !== null;
+  const buttonLoading = submitting || isUploading;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -175,6 +207,7 @@ export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormPro
           mode="outlined"
           icon="camera"
           onPress={selecionarFoto}
+          disabled={isUploading}
           style={{ alignSelf: 'flex-start' }}
         >
           {foto ? 'Trocar foto' : 'Adicionar foto'}
@@ -190,6 +223,11 @@ export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormPro
             />
           </View>
         )}
+        {isUploading && (
+          <Text style={[styles.uploadProgress, { color: theme.colors.primary }]}>
+            Enviando imagem... {uploadProgress}%
+          </Text>
+        )}
         <Text style={[styles.dica, { color: theme.colors.textSecondary }]}>
           Usando sua localização atual para posicionar o ponto no mapa.
         </Text>
@@ -198,10 +236,10 @@ export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormPro
       <Button
         mode="contained"
         onPress={handleSubmit(submit)}
-        loading={submitting}
+        loading={buttonLoading}
         style={styles.submit}
       >
-        Publicar
+        {isUploading ? 'Enviando imagem...' : 'Publicar'}
       </Button>
     </ScrollView>
   );
@@ -214,4 +252,5 @@ const styles = StyleSheet.create({
   foto: { width: 96, height: 72, borderRadius: 8 },
   dica: { fontSize: typography.fontSize.xs },
   submit: { marginTop: spacing.two },
+  uploadProgress: { fontSize: typography.fontSize.sm, marginTop: spacing.one },
 });
