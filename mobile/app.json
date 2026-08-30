@@ -3,18 +3,10 @@
     "name": "Econexa Mobile",
     "slug": "econexa-mobile",
     "version": "1.0.0",
-    "sdkVersion": "48.0.0",
-    "platforms": ["ios", "android", "web"],
+    "sdkVersion": "57.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
-    "updates": {
-      "fallbackToCacheTimeout": 0
-    },
+    "platforms": ["ios", "android", "web"],
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": true
