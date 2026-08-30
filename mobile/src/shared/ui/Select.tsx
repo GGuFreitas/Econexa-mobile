@@ -1,42 +1,68 @@
 import { useEffect, useState } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { useAppTheme } from '@shared/hooks/useAppTheme';
+import { spacing } from '@shared/theme/spacing';
+import { typography } from '@shared/theme/typography';
 
-export function Select({
-  label,
-  value,
-  onValueChange,
-  options,
-}) {
-  const [selectedValue, setSelectedValue] = useState(value);
+interface SelectOption {
+  label: string;
+  value: string | number;
+}
+
+interface SelectProps {
+  label?: string;
+  value: string | number;
+  onValueChange: (value: string | number) => void;
+  options: SelectOption[];
+}
+
+export function Select({ label, value, onValueChange, options }: SelectProps) {
+  const theme = useAppTheme();
+  const [selected, setSelected] = useState(value);
 
   useEffect(() => {
-    setSelectedValue(value);
+    setSelected(value);
   }, [value]);
 
   return (
-    <View style={{ marginBottom: 16 }}>
-      <Text style={{ marginBottom: 8, color: '#334155' }}>{label}</Text>
+    <View style={styles.container}>
+      {label && <Text style={[styles.label, { color: theme.colors.textSecondary }]}>{label}</Text>}
       <View
-        style={{
-          borderRadius: 8,
-          borderWidth: 1,
-          borderColor: '#cbd5e1',
-          overflow: 'hidden',
-        }}
+        style={[
+          styles.pickerWrapper,
+          { borderColor: theme.colors.outline, backgroundColor: theme.colors.surface },
+        ]}
       >
         <Picker
-          selectedValue={selectedValue}
-          onValueChange={(nextValue) => {
-            setSelectedValue(nextValue);
-            onValueChange(nextValue as string | number);
+          selectedValue={selected}
+          dropdownIconColor={theme.colors.textSecondary}
+          onValueChange={(next) => {
+            setSelected(next);
+            onValueChange(next);
           }}
+          style={{ color: theme.colors.text }}
         >
           {options.map((option) => (
-            <Picker.Item key={String(option.value)} label={option.label} value={option.value} />
+            <Picker.Item
+              key={String(option.value)}
+              label={option.label}
+              value={option.value}
+              color={theme.colors.text}
+            />
           ))}
         </Picker>
       </View>
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: { marginBottom: spacing.four },
+  label: { marginBottom: spacing.two, fontSize: typography.fontSize.sm },
+  pickerWrapper: {
+    borderRadius: 12,
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+});
