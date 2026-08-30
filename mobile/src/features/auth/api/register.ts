@@ -4,7 +4,7 @@ export type RegisterInput = {
   nome: string;
   email: string;
   password: string;
-  role?: 'citizen' | 'ong' | 'company' | 'government';
+  role?: 'citizen' | 'specialist' | 'organization';
 };
 
 export type RegisterResponse = {
@@ -13,7 +13,7 @@ export type RegisterResponse = {
     id: number;
     name: string;
     email: string;
-    role: 'citizen' | 'ong' | 'company' | 'government';
+    role: 'citizen' | 'specialist' | 'organization';
     vote_weight: number;
   };
 };
