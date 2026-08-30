@@ -2,7 +2,7 @@ import { TextInput as PaperInput } from 'react-native-paper';
 import type { TextInputProps } from 'react-native-paper';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 
-export function TextInput(props: TextInputProps) {
+export function TextInput(props: TextInputProps & { helperText?: string }) {
   const theme = useAppTheme();
   return (
     <PaperInput

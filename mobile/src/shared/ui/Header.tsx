@@ -1,10 +1,16 @@
 import { View, Text, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppDispatch } from '@store/hooks';
 import { logout } from '@store/authSlice';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 
-export function Header({ title }: { title: string }) {
+interface HeaderProps {
+  title: string;
+  onBack?: () => void;
+}
+
+export function Header({ title, onBack }: HeaderProps) {
   const dispatch = useAppDispatch();
   const theme = useAppTheme();
 
@@ -20,9 +26,16 @@ export function Header({ title }: { title: string }) {
         justifyContent: 'space-between',
       }}
     >
-      <Text style={{ color: theme.colors.onPrimary, fontSize: 20, fontWeight: '700' }}>
-        {title}
-      </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.two }}>
+        {onBack && (
+          <TouchableOpacity onPress={onBack} hitSlop={8}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={theme.colors.onPrimary} />
+          </TouchableOpacity>
+        )}
+        <Text style={{ color: theme.colors.onPrimary, fontSize: 20, fontWeight: '700' }}>
+          {title}
+        </Text>
+      </View>
       <TouchableOpacity
         onPress={() => dispatch(logout())}
         style={{

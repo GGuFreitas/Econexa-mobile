@@ -12,7 +12,8 @@ interface MapBottomSheetProps {
   visible: boolean;
   onDismiss: () => void;
   onVerDetalhes: (id: number) => void;
-  onApoiar?: (id: number) => void;
+  onApoiar?: () => void;
+  apoiando?: boolean;
 }
 
 const META_APOIOS = 50;
@@ -23,6 +24,7 @@ export function MapBottomSheet({
   onDismiss,
   onVerDetalhes,
   onApoiar,
+  apoiando,
 }: MapBottomSheetProps) {
   const theme = useAppTheme();
   if (!problema) return null;
@@ -73,7 +75,8 @@ export function MapBottomSheet({
           <Button
             mode="contained"
             icon="thumb-up"
-            onPress={() => onApoiar(problema.id)}
+            loading={apoiando}
+            onPress={onApoiar}
             style={{ flex: 1 }}
           >
             Apoiar

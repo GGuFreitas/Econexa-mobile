@@ -5,7 +5,7 @@ import { FAB, LoadingSpinner, ErrorState, EmptyState } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { useLocalizacao } from '@shared/hooks/useLocalizacao';
-import { useProblemas, useEstatisticas } from '../hooks';
+import { useProblemas, useEstatisticas, useApoio } from '../hooks';
 import { clusterizar } from '../utils/clusterUtils';
 import { ProblemMarker } from './ProblemMarker';
 import { ProblemCluster } from './ProblemCluster';
@@ -49,6 +49,8 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
     () => clusterizar(problemas ?? [], cellSize),
     [problemas, cellSize],
   );
+
+  const { apoiar } = useApoio(selecionado?.id ?? 0);
 
   if (carregando || (isLoading && !problemas)) return <LoadingSpinner />;
   if (erro) return <ErrorState message={erro} />;
@@ -124,7 +126,8 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
           setSelecionado(null);
           onVerDetalhes?.(id);
         }}
-        onApoiar={onApoiar}
+        onApoiar={selecionado ? () => apoiar.mutate() : undefined}
+        apoiando={apoiar.isPending}
       />
 
       {!problemas?.length && !isLoading && (
