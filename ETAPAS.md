@@ -45,3 +45,25 @@ Telas de auth (Login/Registro) funcionando contra o backend.
 - **PR-M4** — Criar problema (form + foto via expo-image-picker/manipulator) +
   Mobilização (apoiar, denunciar) funcional no mapa/bottom sheet.
 - **PR-M5** — Feed/Perfil/Impacto + navegação em tabs (Mapa/Feed/Perfil).
+
+## PR-M4 — Criar problema + Mobilização
+
+- `types.ts`: `CriarProblemaPayload` (camelCase p/ backend), `ApoioResultado`,
+  `DenunciaMotivo`.
+- `api/`: `criar` (POST /problemas), `apoios` (POST/DELETE /problemas/:id/apoios),
+  `denuncias` (POST /problemas/:id/denuncias) + testes.
+- `hooks/`: `useCriarProblema`, `useApoio` (update otimista do contador), `useDenuncia`.
+- `components/ProblemForm` (react-hook-form + zod, foto via picker/manipulator).
+- `screens/`: `CriarProblemaScreen`, `DetalheProblemaScreen` (apoiar + denunciar).
+- Mapa: bottom sheet apoia via `useApoio`; `Header` com botão de voltar.
+- Nota: backend não aceita imagem no create (sem endpoint) — foto fica na UI, envio
+  depende de backend.
+
+## PR-M5 — Feed / Perfil / Impacto + Tabs
+
+- Navegação em abas: `Mapa` (ProblemMap), `Feed`, `Perfil` (react-navigation/bottom-tabs).
+- RootStack: `Main` (tabs) + `CriarProblema` + `DetalheProblema` full-screen.
+- `screens/FeedScreen` (lista + filtros por causa) com `components/ProblemCard`.
+- `screens/PerfilScreen` (dados do usuário + impacto via estatísticas locais).
+- `LoginScreen` navega para `Main`.
+
