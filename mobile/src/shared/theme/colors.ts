@@ -1,0 +1,76 @@
+export const colors = {
+  primary: {
+    main: '#2E7D32',
+    light: '#4CAF50',
+    dark: '#1B5E20',
+    contrast: '#FFFFFF',
+    container: '#E8F5E9',
+  },
+  secondary: {
+    main: '#D84315',
+    light: '#FF7043',
+    dark: '#BF360C',
+    contrast: '#FFFFFF',
+    container: '#FBE9E7',
+  },
+  tertiary: {
+    main: '#0277BD',
+    light: '#03A9F4',
+    dark: '#01579B',
+    contrast: '#FFFFFF',
+  },
+  success: '#2E7D32',
+  warning: '#F57F17',
+  error: '#C62828',
+  info: '#0277BD',
+  background: '#FAFAFA',
+  surface: '#FFFFFF',
+  surfaceVariant: '#F2F4F7',
+  text: '#1A1A1A',
+  textSecondary: '#5F6B7A',
+  textTertiary: '#8A94A6',
+  border: '#E2E6EC',
+  divider: '#EDF0F4',
+  shadow: '#0A1F44',
+  overlay: 'rgba(10, 31, 68, 0.42)',
+};
+
+export const darkColors = {
+  primary: {
+    main: '#66BB6A',
+    light: '#81C784',
+    dark: '#4CAF50',
+    contrast: '#0A1A0B',
+    container: '#173A1B',
+  },
+  secondary: {
+    main: '#FF8A65',
+    light: '#FFAB91',
+    dark: '#EF6C00',
+    contrast: '#1A0C06',
+    container: '#3A1A0E',
+  },
+  tertiary: {
+    main: '#4FC3F7',
+    light: '#81D4FA',
+    dark: '#0288D1',
+    contrast: '#04141F',
+  },
+  success: '#66BB6A',
+  warning: '#FFD54F',
+  error: '#EF9A9A',
+  info: '#4FC3F7',
+  background: '#0E1116',
+  surface: '#171B21',
+  surfaceVariant: '#1F242C',
+  text: '#F2F4F7',
+  textSecondary: '#AEB8C4',
+  textTertiary: '#7C8696',
+  border: '#2A313B',
+  divider: '#222932',
+  shadow: '#000000',
+  overlay: 'rgba(0, 0, 0, 0.55)',
+};
+
+export type Palette = typeof colors;
+export type ColorScheme = 'light' | 'dark';
