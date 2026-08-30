@@ -46,3 +46,23 @@ export interface ProblemaEstatisticas {
   porCausa: { causa_id: number; total: number }[];
   porTipo: { tipo: string; total: number }[];
 }
+
+export interface CriarProblemaPayload {
+  titulo: string;
+  descricao?: string;
+  causaId: number;
+  tags?: string[];
+  tipo: ProblemaTipo;
+  lat: number;
+  lng: number;
+  localNome?: string;
+  escopo: ProblemaEscopo;
+}
+
+export interface ApoioResultado {
+  apoiado: boolean;
+  cont_apoios: number;
+  cont_apoios_ponderados: number;
+}
+
+export type DenunciaMotivo = 'spam' | 'conteudo_inadequado' | 'duplicado' | 'outro';
