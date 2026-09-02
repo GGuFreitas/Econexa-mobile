@@ -7,11 +7,15 @@ import { CriarProblemaScreen } from '@features/problemas/screens/CriarProblemaSc
 import { DetalheProblemaScreen } from '@features/problemas/screens/DetalheProblemaScreen';
 import { FeedScreen } from '@features/problemas/screens/FeedScreen';
 import { PerfilScreen } from '@features/problemas/screens/PerfilScreen';
+import { CriarMobilizacaoScreen } from '@features/mobilizations/screens/CriarMobilizacaoScreen';
+import { MobilizacaoDetailScreen } from '@features/mobilizations/screens/MobilizacaoDetailScreen';
 
 export type RootStackParamList = {
   Main: undefined;
   CriarProblema: undefined;
   DetalheProblema: { id: number };
+  CriarMobilizacao: { problemaId: number };
+  MobilizacaoDetail: { id: number };
 };
 
 type TabParamList = {
@@ -86,6 +90,22 @@ function DetalheGuarded() {
   );
 }
 
+function CriarMobilizacaoGuarded() {
+  return (
+    <AuthGuard>
+      <CriarMobilizacaoScreen />
+    </AuthGuard>
+  );
+}
+
+function MobilizacaoDetailGuarded() {
+  return (
+    <AuthGuard>
+      <MobilizacaoDetailScreen />
+    </AuthGuard>
+  );
+}
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export default function AppNavigator() {
@@ -94,6 +114,8 @@ export default function AppNavigator() {
       <Stack.Screen name="Main" component={MapaStack} />
       <Stack.Screen name="CriarProblema" component={CriarGuarded} />
       <Stack.Screen name="DetalheProblema" component={DetalheGuarded} />
+      <Stack.Screen name="CriarMobilizacao" component={CriarMobilizacaoGuarded} />
+      <Stack.Screen name="MobilizacaoDetail" component={MobilizacaoDetailGuarded} />
     </Stack.Navigator>
   );
 }

@@ -9,7 +9,9 @@ export default defineConfig({
     alias: {
       '@config': resolve(__dirname, './src/config'),
       '@shared': resolve(__dirname, './src/shared'),
-      '@modules': resolve(__dirname, './src/modules'),
+      '@common': resolve(__dirname, './src/common'),
+      '@features': resolve(__dirname, './src/features'),
+      '@routes': resolve(__dirname, './src/routes'),
     },
   },
   test: {

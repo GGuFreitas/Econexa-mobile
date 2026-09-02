@@ -13,3 +13,4 @@ export { EmptyState } from './EmptyState';
 export { ErrorState } from './ErrorState';
 export { Header } from './Header';
 export { ScreenWrapper } from './ScreenWrapper';
+export { Tabs, Tab } from './Tabs';
