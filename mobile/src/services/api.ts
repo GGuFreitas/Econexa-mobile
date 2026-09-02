@@ -1,4 +1,5 @@
-import axios, { type AxiosError, type AxiosInstance } from 'axios';
+/* global FormData */
+import axios, { type AxiosError, type AxiosInstance, type AxiosProgressEvent } from 'axios';
 import { store } from '@store/store';
 import type { RootState } from '@store/store';
 
@@ -23,3 +24,32 @@ api.interceptors.response.use(
     return Promise.reject(new Error(msg));
   },
 );
+
+export interface UploadFileInput {
+  uri: string;
+  name: string;
+  type: string;
+}
+
+export async function uploadFile(
+  url: string,
+  file: UploadFileInput,
+  onProgress?: (progress: number) => void,
+): Promise<{ url: string }> {
+  const formData = new FormData();
+  formData.append('file', {
+    uri: file.uri,
+    name: file.name,
+    type: file.type,
+  } as any);
+
+  const response = await api.post<{ url: string }>(url, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (event: AxiosProgressEvent) => {
+      if (event.total && onProgress) {
+        onProgress(Math.round((event.loaded * 100) / event.total));
+      }
+    },
+  });
+  return response.data;
+}

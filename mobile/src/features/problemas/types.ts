@@ -57,6 +57,7 @@ export interface CriarProblemaPayload {
   lng: number;
   localNome?: string;
   escopo: ProblemaEscopo;
+  imagens?: string[];
 }
 
 export interface ApoioResultado {
@@ -66,3 +67,9 @@ export interface ApoioResultado {
 }
 
 export type DenunciaMotivo = 'spam' | 'conteudo_inadequado' | 'duplicado' | 'outro';
+
+export interface UploadFileInput {
+  uri: string;
+  name: string;
+  type: string;
+}
