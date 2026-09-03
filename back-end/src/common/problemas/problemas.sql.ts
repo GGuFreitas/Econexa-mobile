@@ -1,12 +1,17 @@
 import { dbPool } from '@config/database.js';
+import type { Executor } from '@shared/transacao.js';
 import type {
   CriarProblemaInput,
   ListarProblemasQuery,
   Problema,
+  ProblemaStatus,
 } from './problemas.types.js';
 
-export async function insertProblema(input: CriarProblemaInput): Promise<Problema> {
-  const result = await dbPool.query(
+export async function insertProblema(
+  input: CriarProblemaInput,
+  executor: Executor = dbPool,
+): Promise<Problema> {
+  const result = await executor.query(
     `INSERT INTO problemas (usuario_id, titulo, descricao, causa_id, tags, tipo, geom, local_nome, escopo)
      VALUES ($1, $2, $3, $4, $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10)
      RETURNING *`,
@@ -112,6 +117,20 @@ export async function findNearbyProblema(
     [lng, lat, raioMetros, causaId, tipo],
   );
   return result.rows[0] ?? null;
+}
+
+export async function atualizarStatus(
+  id: number,
+  status: ProblemaStatus,
+  executor: Executor = dbPool,
+): Promise<Problema> {
+  const result = await executor.query(
+    `UPDATE problemas SET status = $2, atualizado_em = now()
+     WHERE id = $1
+     RETURNING *, ST_X(geom) AS lng, ST_Y(geom) AS lat`,
+    [id, status],
+  );
+  return result.rows[0];
 }
 
 export async function incrementarVisualizacoes(id: number): Promise<void> {

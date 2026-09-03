@@ -33,4 +33,9 @@ export const listarProblemasQuerySchema = z.object({
 });
 
 export type CriarProblemaSchema = z.infer<typeof criarProblemaSchema>;
+export const alterarStatusProblemaSchema = z.object({
+  status: z.enum(['ativo', 'em_analise', 'encaminhado', 'resolvido', 'removido']),
+});
+
 export type ListarProblemasQuerySchema = z.infer<typeof listarProblemasQuerySchema>;
+export type AlterarStatusProblemaSchema = z.infer<typeof alterarStatusProblemaSchema>;
