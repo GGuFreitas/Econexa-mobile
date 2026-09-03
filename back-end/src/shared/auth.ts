@@ -15,6 +15,17 @@ declare module 'fastify' {
   }
 }
 
+function verificarToken(header: string): AuthenticatedUser | null {
+  const token = header.replace('Bearer ', '');
+
+  try {
+    const decoded = jwt.verify(token, env.JWT_SECRET) as unknown as { sub: number; email: string; role: string };
+    return { id: decoded.sub, email: decoded.email, role: decoded.role };
+  } catch {
+    return null;
+  }
+}
+
 export async function requireAuth(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
   const header = request.headers.authorization;
 
@@ -22,12 +33,19 @@ export async function requireAuth(request: FastifyRequest, _reply: FastifyReply)
     throw new AppError('Token de autenticação ausente.', 401);
   }
 
-  const token = header.replace('Bearer ', '');
+  const user = verificarToken(header);
 
-  try {
-    const decoded = jwt.verify(token, env.JWT_SECRET) as unknown as { sub: number; email: string; role: string };
-    request.user = { id: decoded.sub, email: decoded.email, role: decoded.role };
-  } catch {
+  if (!user) {
     throw new AppError('Token inválido ou expirado.', 401);
   }
+
+  request.user = user;
+}
+
+export async function optionalAuth(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
+  const header = request.headers.authorization;
+
+  if (!header || !header.startsWith('Bearer ')) return;
+
+  request.user = verificarToken(header) ?? undefined;
 }
