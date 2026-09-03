@@ -83,3 +83,19 @@ export interface ImagemProblema {
   ordem: number;
   criado_em: string;
 }
+
+export type TipoEventoTimeline =
+  | 'problema_criado'
+  | 'evidencia_adicionada'
+  | 'comentario_criado'
+  | 'mobilizacao_criada'
+  | 'mobilizacao_realizada';
+
+export interface EventoTimeline {
+  id: string;
+  tipo: TipoEventoTimeline;
+  data: string;
+  titulo: string;
+  descricao?: string;
+  autor?: string;
+}
