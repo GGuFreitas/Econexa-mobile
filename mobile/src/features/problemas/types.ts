@@ -73,3 +73,13 @@ export interface UploadFileInput {
   name: string;
   type: string;
 }
+
+export interface ImagemProblema {
+  id: number;
+  tipo_entidade: string;
+  entidade_id: number;
+  url: string;
+  principal: boolean;
+  ordem: number;
+  criado_em: string;
+}
