@@ -195,3 +195,22 @@ Mutirões e eventos cívicos. Implementado em `common/eventos/` e exposto em `ro
 - `POST /eventos/:id/problemas/:problemaId` (auth) — vincula problema (`body.resolveu` opcional).
 - `POST /eventos/:id/inscricoes` (auth) — inscreve (idempotente).
 - `DELETE /eventos/:id/inscricoes` (auth) — desinscreve.
+
+## 13. Módulo comentários
+
+Comentários de um problema. Implementado em `common/comentarios/` (handler + `.sql` + schemas) e exposto dentro de `routes/problemas/`, como já acontece com apoios e denúncias.
+
+- `problema_comentarios` (FK problema/usuário com `ON DELETE CASCADE`, `conteudo` text, `criado_em`), índice `(problema_id, criado_em DESC)`.
+- Escopo do MVP: listar, criar e excluir. **Sem** respostas aninhadas, menções, reactions, edição, anexos ou ranking.
+- Autorização da exclusão é **do servidor**: o handler carrega o comentário, confere o `problema_id` e compara `usuario_id` com o usuário do token — outro usuário recebe `403`; comentário inexistente ou de outro problema recebe `404`.
+- A listagem é pública e usa `optionalAuth` (`shared/auth.ts`): com token válido cada comentário volta com `pode_excluir: true` nos do próprio usuário; sem token, tudo `false`. Assim o cliente não precisa derivar autoria comparando ids.
+- Resposta: `{ id, problema_id, conteudo, criado_em, autor: { id, nome }, pode_excluir }`. Não há avatar porque `users` não tem essa coluna.
+- Rate-limit: `comentarioLimiter` (10/min por usuário) no `POST`.
+
+### 13.1 Endpoints
+- `GET /problemas/:id/comentarios` (público, auth opcional) — lista do mais recente para o mais antigo; `pagina` e `limite` (default 20, máximo 50).
+- `POST /problemas/:id/comentarios` (auth, rate-limit) — cria comentário (`conteudo` 1..1000, com trim).
+- `DELETE /problemas/:id/comentarios/:comentarioId` (auth) — exclui apenas o próprio comentário; responde `{ excluido: true }`.
+
+### 13.2 Lacuna conhecida: atividade do problema
+Não existe tabela nem endpoint de **eventos/atividade**, e `POST/DELETE /problemas/:id/apoios` não expõem quem apoiou nem quando. A timeline do app é montada no cliente com o que já existe (problema, imagens, comentários, mobilizações); eventos de apoio ficam de fora até que essa decisão de modelagem seja tomada.
