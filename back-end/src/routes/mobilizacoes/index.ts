@@ -57,14 +57,14 @@ export async function mobilizacoesRoutes(app: FastifyInstance): Promise<void> {
   app.patch('/:id/status', { preHandler: requireAuth }, async (request, reply) => {
     const id = parseId((request.params as { id: string }).id);
     const { status } = parse(atualizarStatusMobilizacaoSchema, request.body);
-    const mobilizacao = await atualizarStatusMobilizacao(id, status);
+    const mobilizacao = await atualizarStatusMobilizacao(id, status, request.user!.id);
     return ok(reply, mobilizacao);
   });
 
   app.post('/:id/resultado', { preHandler: requireAuth }, async (request, reply) => {
     const id = parseId((request.params as { id: string }).id);
     const body = parse(resultadoMobilizacaoSchema, request.body);
-    const mobilizacao = await registrarResultadoMobilizacao(id, body);
+    const mobilizacao = await registrarResultadoMobilizacao(id, body, request.user!.id);
     return created(reply, mobilizacao);
   });
 
