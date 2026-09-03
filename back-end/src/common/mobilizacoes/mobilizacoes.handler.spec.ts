@@ -25,8 +25,8 @@ describe('mobilizacoes handlers', () => {
   it('cria mobilização vinculada a um problema existente', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // problemaExiste
-      .mockResolvedValueOnce({ rows: [{ id: 1, problema_id: 1, titulo: 'Mutirão de limpeza' }] }) // insert
-      .mockResolvedValueOnce({ rows: [{ id: 50 }] }); // evento
+      .mockResolvedValueOnce({ rows: [{ id: 1, problema_id: 1, titulo: 'Mutirão de limpeza' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 50 }] });
 
     const mobilizacao = await criarMobilizacao({
       usuarioId: 1,
@@ -69,7 +69,7 @@ describe('mobilizacoes handlers', () => {
   it('inclui contador de participantes ao obter mobilização', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ id: 1, status: 'agendada' }] }) // getMobilizacaoById
-      .mockResolvedValueOnce({ rows: [{ total: 4 }] }); // contarParticipantes
+      .mockResolvedValueOnce({ rows: [{ total: 4 }] });
 
     const mobilizacao = await obterMobilizacao(1);
 
@@ -78,9 +78,9 @@ describe('mobilizacoes handlers', () => {
 
   it('permite transição válida de status (agendada -> em_andamento)', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'agendada' }] }) // exigirMobilizacao
+      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'agendada' }] })
       .mockResolvedValueOnce({ rows: [{ id: 1, status: 'em_andamento' }] }) // updateStatus
-      .mockResolvedValueOnce({ rows: [{ total: 0 }] }); // contarParticipantes
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] });
 
     const mobilizacao = await atualizarStatusMobilizacao(1, 'em_andamento', 9);
 
@@ -89,10 +89,10 @@ describe('mobilizacoes handlers', () => {
 
   it('registra MOBILIZACAO_REALIZADA ao concluir a mobilização', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'em_andamento' }] }) // exigirMobilizacao
+      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'em_andamento' }] })
       .mockResolvedValueOnce({ rows: [{ id: 1, problema_id: 4, titulo: 'Mutirão', status: 'realizada' }] })
-      .mockResolvedValueOnce({ rows: [{ id: 51 }] }) // evento
-      .mockResolvedValueOnce({ rows: [{ total: 3 }] }); // contarParticipantes
+      .mockResolvedValueOnce({ rows: [{ id: 51 }] })
+      .mockResolvedValueOnce({ rows: [{ total: 3 }] });
 
     await atualizarStatusMobilizacao(1, 'realizada', 9);
 
@@ -115,9 +115,9 @@ describe('mobilizacoes handlers', () => {
 
   it('participação idempotente retorna contador', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // exigirMobilizacao
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
       .mockResolvedValueOnce({ rows: [{ mobilizacao_id: 1 }] }) // participar (inseriu)
-      .mockResolvedValueOnce({ rows: [{ total: 2 }] }); // contarParticipantes
+      .mockResolvedValueOnce({ rows: [{ total: 2 }] });
 
     const resultado = await participarDaMobilizacao(1, 10);
 

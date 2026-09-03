@@ -86,15 +86,15 @@ describe('encaminhamentos', () => {
 
   it('cria o encaminhamento, emite ENCAMINHADO e leva o problema para encaminhado', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [problemaDoAutor] }) // exigirProblema
-      .mockResolvedValueOnce({ rows: [orgao] }) // getOrgaoById
-      .mockResolvedValueOnce({ rows: [] }) // encaminhamentoAberto
-      .mockResolvedValueOnce({ rows: [{ nome: 'Ana' }] }) // nomeDoUsuario
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento()] }) // inserirEncaminhamento
-      .mockResolvedValueOnce({ rows: [{ id: 90 }] }) // evento ENCAMINHADO
-      .mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'encaminhado' }] }) // atualizarStatus
-      .mockResolvedValueOnce({ rows: [{ id: 91 }] }) // evento STATUS_ALTERADO
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'enviado' })] }); // marcarEnvio
+      .mockResolvedValueOnce({ rows: [problemaDoAutor] })
+      .mockResolvedValueOnce({ rows: [orgao] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ nome: 'Ana' }] })
+      .mockResolvedValueOnce({ rows: [linhaEncaminhamento()] })
+      .mockResolvedValueOnce({ rows: [{ id: 90 }] })
+      .mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'encaminhado' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 91 }] })
+      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'enviado' })] });
 
     const encaminhamento = await criarEncaminhamento({
       problemaId: 42,
