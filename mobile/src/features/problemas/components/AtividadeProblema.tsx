@@ -12,13 +12,19 @@ interface AtividadeProblemaProps {
 
 export function AtividadeProblema({ problemaId }: AtividadeProblemaProps) {
   const theme = useAppTheme();
-  const { eventos, isLoading, isError, refetch } = useTimeline(problemaId);
+  const { eventos, isLoading, isError, error, refetch } = useTimeline(problemaId);
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.secao}>
         <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>Linha do tempo</Text>
-        <Timeline eventos={eventos} isLoading={isLoading} isError={isError} onRetry={refetch} />
+        <Timeline
+          eventos={eventos}
+          isLoading={isLoading}
+          isError={isError}
+          mensagemErro={(error as Error | null)?.message}
+          onRetry={refetch}
+        />
       </View>
 
       <ComentariosList problemaId={problemaId} />
