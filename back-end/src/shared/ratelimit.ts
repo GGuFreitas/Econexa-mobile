@@ -23,3 +23,4 @@ export class RateLimiter {
 
 export const criarProblemaLimiter = new RateLimiter(5, 60_000);
 export const denunciaLimiter = new RateLimiter(3, 60_000);
+export const comentarioLimiter = new RateLimiter(10, 60_000);
