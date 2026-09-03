@@ -28,6 +28,11 @@ export interface Problema {
   distancia_m?: number;
 }
 
+export interface ProblemaDetalhe extends Problema {
+  pode_encaminhar: boolean;
+  transicoes_permitidas: ProblemaStatus[];
+}
+
 export interface ProblemaQuery {
   lat?: number;
   lng?: number;
@@ -57,7 +62,6 @@ export interface CriarProblemaPayload {
   lng: number;
   localNome?: string;
   escopo: ProblemaEscopo;
-  imagens?: string[];
 }
 
 export interface ApoioResultado {
@@ -84,16 +88,34 @@ export interface ImagemProblema {
   criado_em: string;
 }
 
-export type TipoEventoTimeline =
-  | 'problema_criado'
-  | 'evidencia_adicionada'
-  | 'comentario_criado'
-  | 'mobilizacao_criada'
-  | 'mobilizacao_realizada';
+export type ProblemaEventoTipo =
+  | 'PROBLEMA_CRIADO'
+  | 'EVIDENCIA_ADICIONADA'
+  | 'COMENTARIO_CRIADO'
+  | 'MOBILIZACAO_CRIADA'
+  | 'MOBILIZACAO_REALIZADA'
+  | 'ENCAMINHADO'
+  | 'RESPOSTA_RECEBIDA'
+  | 'STATUS_ALTERADO'
+  | 'RESOLVIDO';
 
-export interface EventoTimeline {
-  id: string;
-  tipo: TipoEventoTimeline;
+export interface ProblemaEventoAutor {
+  id: number;
+  nome: string;
+}
+
+export interface ProblemaEvento {
+  id: number;
+  problema_id: number;
+  tipo: ProblemaEventoTipo;
+  dados: Record<string, unknown>;
+  criado_em: string;
+  autor: ProblemaEventoAutor | null;
+}
+
+export interface EventoApresentado {
+  id: number;
+  tipo: ProblemaEventoTipo;
   data: string;
   titulo: string;
   descricao?: string;

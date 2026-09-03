@@ -31,11 +31,11 @@ export interface UploadFileInput {
   type: string;
 }
 
-export async function uploadFile(
+export async function uploadFile<T>(
   url: string,
   file: UploadFileInput,
   onProgress?: (progress: number) => void,
-): Promise<{ url: string }> {
+): Promise<T> {
   const formData = new FormData();
   formData.append('file', {
     uri: file.uri,
@@ -43,7 +43,7 @@ export async function uploadFile(
     type: file.type,
   } as any);
 
-  const response = await api.post<{ url: string }>(url, formData, {
+  const response = await api.post<T>(url, formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     onUploadProgress: (event: AxiosProgressEvent) => {
       if (event.total && onProgress) {
