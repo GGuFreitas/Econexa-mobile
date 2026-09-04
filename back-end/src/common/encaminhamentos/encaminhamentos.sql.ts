@@ -6,12 +6,22 @@ import type {
   Orgao,
 } from './encaminhamentos.types.js';
 
+export const STATUS_QUE_BLOQUEIAM = ['pendente', 'enviado'];
+
 const SELECT_ENCAMINHAMENTO = `
   SELECT e.*, o.nome AS orgao_nome, o.esfera AS orgao_esfera, o.tipo AS orgao_tipo,
-         u.nome AS autor_nome
+         o.email AS orgao_email, u.nome AS autor_nome
   FROM problema_encaminhamentos e
   INNER JOIN orgaos o ON o.id = e.orgao_id
   INNER JOIN users u ON u.id = e.usuario_id
+`;
+
+const COMPLEMENTO_ENCAMINHAMENTO = `
+  SELECT alvo.*, o.nome AS orgao_nome, o.esfera AS orgao_esfera, o.tipo AS orgao_tipo,
+         o.email AS orgao_email, u.nome AS autor_nome
+  FROM alvo
+  INNER JOIN orgaos o ON o.id = alvo.orgao_id
+  INNER JOIN users u ON u.id = alvo.usuario_id
 `;
 
 export async function listarOrgaos(): Promise<Orgao[]> {
@@ -40,8 +50,23 @@ export async function encaminhamentoAberto(
 ): Promise<boolean> {
   const result = await dbPool.query(
     `SELECT 1 FROM problema_encaminhamentos
-     WHERE problema_id = $1 AND orgao_id = $2 AND status <> 'respondido'`,
-    [problemaId, orgaoId],
+     WHERE problema_id = $1 AND orgao_id = $2 AND status = ANY($3::text[])`,
+    [problemaId, orgaoId, STATUS_QUE_BLOQUEIAM],
+  );
+  return result.rows.length > 0;
+}
+
+export async function existeOrgaoDisponivel(problemaId: number): Promise<boolean> {
+  const result = await dbPool.query(
+    `SELECT 1
+     FROM orgaos o
+     WHERE o.ativo = true
+       AND NOT EXISTS (
+         SELECT 1 FROM problema_encaminhamentos e
+         WHERE e.problema_id = $1 AND e.orgao_id = o.id AND e.status = ANY($2::text[])
+       )
+     LIMIT 1`,
+    [problemaId, STATUS_QUE_BLOQUEIAM],
   );
   return result.rows.length > 0;
 }
@@ -51,17 +76,13 @@ export async function inserirEncaminhamento(
   executor: Executor = dbPool,
 ): Promise<EncaminhamentoRow> {
   const result = await executor.query(
-    `WITH novo AS (
+    `WITH alvo AS (
        INSERT INTO problema_encaminhamentos
          (problema_id, orgao_id, usuario_id, referencia, assunto, mensagem)
        VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *
      )
-     SELECT novo.*, o.nome AS orgao_nome, o.esfera AS orgao_esfera, o.tipo AS orgao_tipo,
-            u.nome AS autor_nome
-     FROM novo
-     INNER JOIN orgaos o ON o.id = novo.orgao_id
-     INNER JOIN users u ON u.id = novo.usuario_id`,
+     ${COMPLEMENTO_ENCAMINHAMENTO}`,
     [
       input.problemaId,
       input.orgaoId,
@@ -90,22 +111,20 @@ export async function getEncaminhamentoById(id: number): Promise<EncaminhamentoR
 export async function marcarEnvio(
   id: number,
   enviado: boolean,
+  motivoDaFalha: string | null = null,
 ): Promise<EncaminhamentoRow> {
   const result = await dbPool.query(
-    `WITH atualizado AS (
+    `WITH alvo AS (
        UPDATE problema_encaminhamentos
        SET status = $2::text,
            enviado_em = CASE WHEN $2::text = 'enviado' THEN now() ELSE enviado_em END,
+           falha_motivo = $3,
            atualizado_em = now()
        WHERE id = $1
        RETURNING *
      )
-     SELECT atualizado.*, o.nome AS orgao_nome, o.esfera AS orgao_esfera, o.tipo AS orgao_tipo,
-            u.nome AS autor_nome
-     FROM atualizado
-     INNER JOIN orgaos o ON o.id = atualizado.orgao_id
-     INNER JOIN users u ON u.id = atualizado.usuario_id`,
-    [id, enviado ? 'enviado' : 'falhou'],
+     ${COMPLEMENTO_ENCAMINHAMENTO}`,
+    [id, enviado ? 'enviado' : 'falhou', enviado ? null : motivoDaFalha],
   );
   return result.rows[0];
 }
@@ -117,18 +136,14 @@ export async function registrarResposta(
   executor: Executor = dbPool,
 ): Promise<EncaminhamentoRow> {
   const result = await executor.query(
-    `WITH atualizado AS (
+    `WITH alvo AS (
        UPDATE problema_encaminhamentos
        SET resposta = $2, protocolo = $3, status = 'respondido',
            respondido_em = now(), atualizado_em = now()
        WHERE id = $1
        RETURNING *
      )
-     SELECT atualizado.*, o.nome AS orgao_nome, o.esfera AS orgao_esfera, o.tipo AS orgao_tipo,
-            u.nome AS autor_nome
-     FROM atualizado
-     INNER JOIN orgaos o ON o.id = atualizado.orgao_id
-     INNER JOIN users u ON u.id = atualizado.usuario_id`,
+     ${COMPLEMENTO_ENCAMINHAMENTO}`,
     [id, resposta, protocolo],
   );
   return result.rows[0];

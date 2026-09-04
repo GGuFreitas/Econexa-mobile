@@ -26,6 +26,7 @@ export interface EncaminhamentoRow {
   mensagem: string;
   status: EncaminhamentoStatus;
   enviado_em: Date | string | null;
+  falha_motivo: string | null;
   protocolo: string | null;
   resposta: string | null;
   respondido_em: Date | string | null;
@@ -34,6 +35,7 @@ export interface EncaminhamentoRow {
   orgao_nome: string;
   orgao_esfera: string;
   orgao_tipo: string;
+  orgao_email: string;
   autor_nome: string;
 }
 
@@ -45,13 +47,16 @@ export interface Encaminhamento {
   mensagem: string;
   status: EncaminhamentoStatus;
   enviado_em: Date | string | null;
+  falha_motivo: string | null;
   protocolo: string | null;
   resposta: string | null;
+  resposta_verificada: boolean;
   respondido_em: Date | string | null;
   criado_em: Date | string;
   orgao: OrgaoPublico;
   autor: { id: number; nome: string };
   pode_registrar_resposta: boolean;
+  pode_reenviar: boolean;
 }
 
 export interface CriarEncaminhamentoInput {
@@ -67,6 +72,13 @@ export interface RegistrarRespostaInput {
   encaminhamentoId: number;
   resposta: string;
   protocolo?: string;
+  usuarioId: number;
+  role: string;
+}
+
+export interface ReenviarEncaminhamentoInput {
+  problemaId: number;
+  encaminhamentoId: number;
   usuarioId: number;
   role: string;
 }
