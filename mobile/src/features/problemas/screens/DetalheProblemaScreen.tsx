@@ -147,6 +147,7 @@ export function DetalheProblemaScreen() {
         <MobilizacoesListScreen
           problemaId={problema.id}
           onPress={(mobilizacaoId) => navigation.navigate('MobilizacaoDetail', { id: mobilizacaoId })}
+          onCriar={() => navigation.navigate('CriarMobilizacao', { problemaId: problema.id })}
         />
       )}
 

@@ -1,9 +1,11 @@
 import { useSelector } from 'react-redux';
 import { View, Text, StyleSheet } from 'react-native';
-import { Header, ScreenWrapper, Card, LoadingSpinner } from '@shared/ui';
+import { Header, ScreenWrapper, Card, Button, LoadingSpinner } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
+import { useAppDispatch } from '@store/hooks';
+import { logout } from '@store/authSlice';
 import type { User } from '@store/authSlice';
 import { useEstatisticas } from '../hooks';
 import { useLocalizacao } from '@shared/hooks/useLocalizacao';
@@ -18,6 +20,7 @@ const RAIO_PERFIL_METROS = 8000;
 
 export function PerfilScreen() {
   const theme = useAppTheme();
+  const dispatch = useAppDispatch();
   const user = useSelector((state: { auth: { user: User | null } }) => state.auth.user);
   const { coordenada } = useLocalizacao();
   const { data: estatisticas } = useEstatisticas({
@@ -59,6 +62,10 @@ export function PerfilScreen() {
           </Text>
         )}
       </Card>
+
+      <Button mode="outlined" icon="logout" onPress={() => dispatch(logout())}>
+        Sair da conta
+      </Button>
     </ScreenWrapper>
   );
 }
