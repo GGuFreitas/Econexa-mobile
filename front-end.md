@@ -23,12 +23,16 @@ App mobile do Mutira. Stack validada em ago/2026: **Expo SDK 57 + Node 24 LTS**.
 ```
 src/
   features/            # por domínio (baixo acoplamento)
-    auth/              # login, registro
+    auth/              # api/ login, register
+                       # components/ LoginForm, RegisterForm
+                       # hooks/ useLogin, useRegister
+                       # screens/ LoginScreen, RegisterScreen
     home/              # HomeScreen = Mapa Vivo
     problemas/
       types.ts         # Problema, ProblemaDetalhe, ImagemProblema,
                        # ProblemaEvento, EventoApresentado
-      api/             # listar, buscar, estatisticas, criar, apoios, denuncias,
+      api/             # params (montarFiltro/montarListagem, um só serializador),
+                       # listar, buscar, estatisticas, criar, apoios, denuncias,
                        # imagens (upload multipart), listarImagens,
                        # listarEventos, alterarStatus
       hooks/           # useProblemas, useEstatisticas, useProblema, useApoio,
@@ -61,10 +65,11 @@ src/
     ui/                # Button, TextInput (+ helperText), Chip, Card, BottomSheet,
                        # FAB, Tabs...
     hooks/             # useAppTheme, useLocalizacao, useAppQueryClient
-    utils/             # dataRelativa (formatarDataRelativa)
+    utils/             # dataRelativa (formatarDataRelativa),
+                       # mensagemDeErro (status HTTP -> texto para o usuário)
   store/               # authSlice, themeSlice (Redux)
   navigation/          # AppNavigator, AuthGuard
-  services/            # api.ts (axios)
+  services/            # api.ts (axios), ApiError.ts
 ```
 
 Importações usam aliases (`@features`, `@shared`, `@store`, `@navigation`,
@@ -121,6 +126,42 @@ O mesmo vale para as permissões do M9/M9.5: `pode_encaminhar`,
 `pode_registrar_resposta` e `pode_reenviar` (em cada encaminhamento) vêm calculados do
 servidor. `opcoesDeStatus` só monta as opções que a API listou; se a lista vier
 vazia, o botão nem aparece — e a API responde `403` de qualquer forma.
+
+### Sessão e erro da API
+
+`services/api.ts` **preservava só a mensagem**: o interceptor transformava tudo em
+`new Error(msg)` e o status HTTP era destruído. Nenhum consumidor conseguia distinguir
+401 de 403, 404, 429 ou falha de rede — e, por consequência, **o 401 não fazia nada**: a
+action `logout` do `authSlice` existia e não era despachada por sessão expirada em lugar
+nenhum.
+
+- O interceptor agora rejeita com `ApiError` (`services/ApiError.ts`), que carrega
+  `status`. Continua sendo um `Error`, então quem só lê `message` não muda.
+- Um `401` fora de `/auth/login` e `/auth/register` **derruba a sessão**
+  (`store.dispatch(logout())`), e o `AuthGuard` devolve a tela de login sozinho. As duas
+  rotas de autenticação são exceção porque ali o 401 significa "senha errada", não
+  "sessão expirou".
+- `shared/utils/mensagemDeErro.ts` traduz o status em texto para o usuário (401 =
+  credencial, 429 = excesso de tentativas, sem status = rede) e é função pura, testada.
+
+**A tela de cadastro passou a existir.** `useRegister` e `api/register.ts` existiam desde
+o M1 e **não eram importados por componente nenhum**: o `LoginScreen` só renderizava o
+`LoginForm`, e não havia como criar conta pelo app — o `ETAPAS.md` afirmava o contrário.
+Agora há `RegisterForm` + `RegisterScreen`, a rota `Cadastro` no stack e o link
+"Criar conta" no login. Sem campo `role`, que o PR-A removeu do contrato. Depois do
+cadastro o app já faz o login com as mesmas credenciais; se esse login falhar, avisa e
+volta para a tela de login em vez de deixar a pessoa presa.
+
+**`CriarMobilizacao` era inalcançável.** A tela estava registrada no navigator e nenhum
+`navigate('CriarMobilizacao')` existia, o que tornava mortos `CriarMobilizacaoScreen`,
+`CriarMobilizacaoForm` e `useCriarMobilizacao` — enquanto o empty state convidava a "ser
+o primeiro a organizar uma ação" sem botão nenhum. O `MobilizacoesListScreen` recebeu
+`onCriar` e o oferece nos dois lugares: no cabeçalho da lista e dentro do estado vazio.
+
+**O botão de sair saiu do `Header` e foi para o `PerfilScreen`.** O `Header` genérico
+despachava `logout()` num botão fixo, o que o colocava em toda tela que usa cabeçalho —
+inclusive na de cadastro, onde ninguém está logado. Agora o `Header` só tem título e
+voltar, e "Sair da conta" é um botão explícito no perfil.
 
 A mobilização entrou na mesma regra: `GET /mobilizacoes/:id` devolve `pode_gerenciar`, e
 o `MobilizacaoDetailScreen` usa esse campo para decidir se mostra Iniciar, Cancelar,
@@ -230,6 +271,22 @@ Clustering é implementado no app (sem lib externa) para controlar a UI do clust
 Todos os blocos tratam loading, vazio, erro, sucesso e ação em andamento. Nenhum
 deles usa `0` como fallback de dado ainda não carregado.
 
+### Números que o app mostra
+
+- **`PerfilScreen` dizia "Seu impacto"** e exibia `estatisticas?.total ?? 0`, que é a
+  contagem de problemas ativos **da região**, não do usuário — nada ali media a
+  participação de quem estava olhando. O card virou "Na sua região", diz o raio em km e
+  **perdeu o `?? 0`**: enquanto a estatística não chega, mostra que está carregando.
+  Impacto do usuário só existe a partir do M10.
+- **`ProblemMap` mostrava "N mobilizando"** a partir de
+  `estatisticas?.porCausa?.reduce((acc, c) => acc + c.total, 0)`. A soma de `porCausa`
+  é, por definição, o próprio `total`: a métrica repetia a contagem de problemas com
+  outro rótulo. **Foi removida** — não existe fonte de dado para "quantas pessoas estão
+  mobilizando perto de você", e inventar uma seria mentir. `PertoDeVoce` ficou com o
+  total e passou a receber o raio por prop em vez de repetir `8` no corpo.
+- Com as agregações honrando `raio` (PR-B2 no backend), o "N em 8km" do `PertoDeVoce`
+  finalmente diz o que promete: antes era a contagem nacional com rótulo regional.
+
 ## `shared/ui/TextInput`
 
 `TextInput` aceita `helperText` e **renderiza** a mensagem no `HelperText` do Paper, com
@@ -241,6 +298,17 @@ validação era engolida em silêncio, nos 10 usos de `ProblemForm`,
 A decisão de mostrar (e com que `type`) fica em `shared/ui/helperText.ts`, função pura —
 é o que dá para testar sem renderizar árvore React Native.
 
+O `LoginForm` tinha ficado de fora dessa correção: renderizava o erro num `<Text>`
+manual com `#b91c1c` no meio do JSX. Passou a usar `helperText` como os outros quatro
+formulários, e o `LoginScreen` deixou de ter cor fixa no código.
+
+**Tipagem dos formulários.** `LoginForm` era a única função de componente sem tipo
+(`export function LoginForm({ onSubmit })`), o que passava porque `mobile/tsconfig.json`
+tem `strict: false`. Agora tem `LoginFormProps`, e o `RegisterForm` nasceu tipado. Um
+detalhe do mesmo `strict: false`: `z.infer` devolve **todos** os campos opcionais quando
+`strictNullChecks` está desligado, então `LoginFormValues` e `RegisterFormValues` são
+declarados à mão em vez de inferidos do schema.
+
 ## Testes e qualidade
 
 - `npm run typecheck` (tsc --noEmit)
@@ -251,8 +319,16 @@ A decisão de mostrar (e com que `type`) fica em `shared/ui/helperText.ts`, fun�
 
 Stack de teste: **vitest em ambiente jsdom**, cobrindo funções puras
 (`apresentarEvento`, `opcoesDeStatus`, `clusterUtils`, `dataRelativa`,
-`estadoDoHelperText`, `rotuloDoRelato`), a camada `api/` com o axios mockado e os hooks
-com `renderHook` do `@testing-library/react` sobre um `QueryClientProvider`.
+`estadoDoHelperText`, `rotuloDoRelato`, `mensagemDeErro`), a camada `api/` com o axios
+mockado e os hooks com `renderHook` do `@testing-library/react` sobre um
+`QueryClientProvider`.
+
+`participacao.hooks.spec.tsx` cobre o update otimista de participar/sair e, sobretudo, o
+**rollback**: `useParticipar` e `useSair` faziam
+`qc.setQueryData(['mobilizacao', ctx.prev], ctx.prev)` — usavam o **objeto de dados**
+como parte da chave, então o rollback escrevia numa chave-lixo e o estado otimista
+errado ficava na tela. O teste confere que o cache volta ao valor anterior e que nenhuma
+chave nova aparece.
 
 **Não há render de árvore React Native nos testes**: o `react-native` do SDK 57 é
 distribuído com sintaxe Flow que o esbuild do vitest não transforma, e
