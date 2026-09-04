@@ -5,6 +5,7 @@ import {
   criarEncaminhamento,
   listarEncaminhamentos,
   listarOrgaos,
+  reenviarEncaminhamento,
   registrarResposta,
 } from './encaminhamentos.handler.js';
 
@@ -45,6 +46,7 @@ function linhaEncaminhamento(extra: Record<string, unknown> = {}) {
     mensagem: 'corpo',
     status: 'pendente',
     enviado_em: null,
+    falha_motivo: null,
     protocolo: null,
     resposta: null,
     respondido_em: null,
@@ -53,14 +55,37 @@ function linhaEncaminhamento(extra: Record<string, unknown> = {}) {
     orgao_nome: orgao.nome,
     orgao_esfera: orgao.esfera,
     orgao_tipo: orgao.tipo,
+    orgao_email: orgao.email,
     autor_nome: 'Ana',
     ...extra,
   };
 }
 
+function linhaEnviada(extra: Record<string, unknown> = {}) {
+  return linhaEncaminhamento({
+    status: 'enviado',
+    enviado_em: '2026-09-03T10:05:00.000Z',
+    ...extra,
+  });
+}
+
+function fluxoDeCriacao(linhaFinal: Record<string, unknown>) {
+  mockQuery
+    .mockResolvedValueOnce({ rows: [problemaDoAutor] })
+    .mockResolvedValueOnce({ rows: [orgao] })
+    .mockResolvedValueOnce({ rows: [] })
+    .mockResolvedValueOnce({ rows: [{ nome: 'Ana' }] })
+    .mockResolvedValueOnce({ rows: [linhaEncaminhamento()] })
+    .mockResolvedValueOnce({ rows: [{ id: 90 }] })
+    .mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'encaminhado' }] })
+    .mockResolvedValueOnce({ rows: [{ id: 91 }] })
+    .mockResolvedValueOnce({ rows: [linhaFinal] });
+}
+
 describe('encaminhamentos', () => {
   beforeEach(() => {
     mockQuery.mockReset();
+    mockQuery.mockResolvedValue({ rows: [] });
     mockEnviarEmail.mockClear();
     mockEnviarEmail.mockResolvedValue({
       from: 'Mutira',
@@ -85,16 +110,7 @@ describe('encaminhamentos', () => {
   });
 
   it('cria o encaminhamento, emite ENCAMINHADO e leva o problema para encaminhado', async () => {
-    mockQuery
-      .mockResolvedValueOnce({ rows: [problemaDoAutor] })
-      .mockResolvedValueOnce({ rows: [orgao] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ nome: 'Ana' }] })
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento()] })
-      .mockResolvedValueOnce({ rows: [{ id: 90 }] })
-      .mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'encaminhado' }] })
-      .mockResolvedValueOnce({ rows: [{ id: 91 }] })
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'enviado' })] });
+    fluxoDeCriacao(linhaEnviada());
 
     const encaminhamento = await criarEncaminhamento({
       problemaId: 42,
@@ -111,16 +127,7 @@ describe('encaminhamentos', () => {
   });
 
   it('envia a petição gerada para o e-mail do órgão pelo transporte configurado', async () => {
-    mockQuery
-      .mockResolvedValueOnce({ rows: [problemaDoAutor] })
-      .mockResolvedValueOnce({ rows: [orgao] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ nome: 'Ana' }] })
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento()] })
-      .mockResolvedValueOnce({ rows: [{ id: 90 }] })
-      .mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'encaminhado' }] })
-      .mockResolvedValueOnce({ rows: [{ id: 91 }] })
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'enviado' })] });
+    fluxoDeCriacao(linhaEnviada());
 
     await criarEncaminhamento({ problemaId: 42, orgaoId: 2, usuarioId: 7, role: 'citizen' });
 
@@ -130,17 +137,11 @@ describe('encaminhamentos', () => {
     expect(mensagem.corpo).toContain('MUTIRA-P000042');
   });
 
-  it('marca o encaminhamento como falhou quando o e-mail não sai', async () => {
-    mockQuery
-      .mockResolvedValueOnce({ rows: [problemaDoAutor] })
-      .mockResolvedValueOnce({ rows: [orgao] })
-      .mockResolvedValueOnce({ rows: [] })
-      .mockResolvedValueOnce({ rows: [{ nome: 'Ana' }] })
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento()] })
-      .mockResolvedValueOnce({ rows: [{ id: 90 }] })
-      .mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'encaminhado' }] })
-      .mockResolvedValueOnce({ rows: [{ id: 91 }] })
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'falhou' })] });
+  it('loga e persiste o motivo quando o e-mail não sai', async () => {
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    fluxoDeCriacao(
+      linhaEncaminhamento({ status: 'falhou', falha_motivo: 'smtp indisponível' }),
+    );
     mockEnviarEmail.mockRejectedValueOnce(new Error('smtp indisponível'));
 
     const encaminhamento = await criarEncaminhamento({
@@ -151,6 +152,10 @@ describe('encaminhamentos', () => {
     });
 
     expect(encaminhamento.status).toBe('falhou');
+    expect(encaminhamento.falha_motivo).toBe('smtp indisponível');
+    expect(mockQuery.mock.calls[8][1]).toEqual([11, 'falhou', 'smtp indisponível']);
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('smtp indisponível'));
+    log.mockRestore();
   });
 
   it('recusa encaminhamento de quem não é autor nem moderação', async () => {
@@ -172,7 +177,7 @@ describe('encaminhamentos', () => {
     ).rejects.toThrow('Órgão responsável não encontrado.');
   });
 
-  it('não abre um segundo encaminhamento para o mesmo órgão enquanto o anterior está aberto', async () => {
+  it('só um encaminhamento pendente ou enviado bloqueia o mesmo órgão', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
       .mockResolvedValueOnce({ rows: [orgao] })
@@ -181,14 +186,31 @@ describe('encaminhamentos', () => {
     await expect(
       criarEncaminhamento({ problemaId: 42, orgaoId: 2, usuarioId: 7, role: 'citizen' }),
     ).rejects.toThrow('Já existe um encaminhamento aberto para este órgão.');
+
+    expect(mockQuery.mock.calls[2][1]).toEqual([42, 2, ['pendente', 'enviado']]);
   });
 
-  it('registra a resposta do órgão e emite RESPOSTA_RECEBIDA', async () => {
+  it('converte a corrida no índice único em erro de negócio', async () => {
+    const conflito = Object.assign(new Error('duplicate key'), { code: '23505' });
     mockQuery
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'enviado' })] })
+      .mockResolvedValueOnce({ rows: [problemaDoAutor] })
+      .mockResolvedValueOnce({ rows: [orgao] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ nome: 'Ana' }] })
+      .mockRejectedValueOnce(conflito);
+
+    await expect(
+      criarEncaminhamento({ problemaId: 42, orgaoId: 2, usuarioId: 7, role: 'citizen' }),
+    ).rejects.toThrow('Já existe um encaminhamento aberto para este órgão.');
+    expect(mockEnviarEmail).not.toHaveBeenCalled();
+  });
+
+  it('registra a resposta do órgão e emite RESPOSTA_RECEBIDA como relato do cidadão', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [linhaEnviada()] })
       .mockResolvedValueOnce({
         rows: [
-          linhaEncaminhamento({
+          linhaEnviada({
             status: 'respondido',
             resposta: 'Serviço agendado.',
             protocolo: 'OS-123',
@@ -207,13 +229,43 @@ describe('encaminhamentos', () => {
     });
 
     expect(encaminhamento.status).toBe('respondido');
+    expect(encaminhamento.resposta_verificada).toBe(false);
     expect(encaminhamento.pode_registrar_resposta).toBe(false);
     expect(mockQuery.mock.calls[1][1]).toEqual([11, 'Serviço agendado.', 'OS-123']);
     expect(mockQuery.mock.calls[2][1]?.[1]).toBe('RESPOSTA_RECEBIDA');
+    expect(JSON.parse(String(mockQuery.mock.calls[2][1]?.[3]))).toMatchObject({
+      relato_do_cidadao: true,
+    });
+  });
+
+  it('recusa resposta em encaminhamento que nunca chegou a ser enviado', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'pendente' })] });
+
+    await expect(
+      registrarResposta({
+        problemaId: 42,
+        encaminhamentoId: 11,
+        resposta: 'Serviço agendado.',
+        usuarioId: 7,
+        role: 'citizen',
+      }),
+    ).rejects.toThrow('Este encaminhamento ainda não foi enviado ao órgão.');
+
+    mockQuery.mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'falhou' })] });
+
+    await expect(
+      registrarResposta({
+        problemaId: 42,
+        encaminhamentoId: 11,
+        resposta: 'Serviço agendado.',
+        usuarioId: 7,
+        role: 'citizen',
+      }),
+    ).rejects.toThrow('Este encaminhamento ainda não foi enviado ao órgão.');
   });
 
   it('recusa resposta de quem não encaminhou nem modera', async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'enviado' })] });
+    mockQuery.mockResolvedValueOnce({ rows: [linhaEnviada()] });
 
     await expect(
       registrarResposta({
@@ -227,7 +279,7 @@ describe('encaminhamentos', () => {
   });
 
   it('recusa resposta em encaminhamento de outro problema', async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [linhaEncaminhamento({ problema_id: 7 })] });
+    mockQuery.mockResolvedValueOnce({ rows: [linhaEnviada({ problema_id: 7 })] });
 
     await expect(
       registrarResposta({
@@ -241,7 +293,7 @@ describe('encaminhamentos', () => {
   });
 
   it('não aceita duas respostas para o mesmo encaminhamento', async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'respondido' })] });
+    mockQuery.mockResolvedValueOnce({ rows: [linhaEnviada({ status: 'respondido' })] });
 
     await expect(
       registrarResposta({
@@ -254,17 +306,79 @@ describe('encaminhamentos', () => {
     ).rejects.toThrow('Este encaminhamento já tem resposta registrada.');
   });
 
-  it('marca pode_registrar_resposta apenas para quem pode agir', async () => {
+  it('reenvia um encaminhamento com falha e volta a marcar como enviado', async () => {
+    mockQuery
+      .mockResolvedValueOnce({
+        rows: [linhaEncaminhamento({ status: 'falhou', falha_motivo: 'smtp fora do ar' })],
+      })
+      .mockResolvedValueOnce({ rows: [linhaEnviada()] });
+
+    const encaminhamento = await reenviarEncaminhamento({
+      problemaId: 42,
+      encaminhamentoId: 11,
+      usuarioId: 7,
+      role: 'citizen',
+    });
+
+    expect(encaminhamento.status).toBe('enviado');
+    expect(encaminhamento.pode_registrar_resposta).toBe(true);
+    expect(mockEnviarEmail.mock.calls[0][0].para).toBe('obras@exemplo.invalid');
+    expect(mockQuery.mock.calls[1][1]).toEqual([11, 'enviado', null]);
+  });
+
+  it('reenvia um encaminhamento preso em pendente', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'pendente' })] })
+      .mockResolvedValueOnce({ rows: [linhaEnviada()] });
+
+    const encaminhamento = await reenviarEncaminhamento({
+      problemaId: 42,
+      encaminhamentoId: 11,
+      usuarioId: 7,
+      role: 'citizen',
+    });
+
+    expect(encaminhamento.status).toBe('enviado');
+  });
+
+  it('não reenvia encaminhamento já enviado ou respondido', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [linhaEnviada()] });
+
+    await expect(
+      reenviarEncaminhamento({
+        problemaId: 42,
+        encaminhamentoId: 11,
+        usuarioId: 7,
+        role: 'citizen',
+      }),
+    ).rejects.toThrow('Só é possível reenviar um encaminhamento pendente ou com falha.');
+  });
+
+  it('recusa reenvio de quem não encaminhou nem modera', async () => {
+    mockQuery.mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'falhou' })] });
+
+    await expect(
+      reenviarEncaminhamento({
+        problemaId: 42,
+        encaminhamentoId: 11,
+        usuarioId: 99,
+        role: 'citizen',
+      }),
+    ).rejects.toThrow('Você não pode reenviar este encaminhamento.');
+  });
+
+  it('marca as ações possíveis apenas para quem pode agir', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'enviado' })] });
+      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'falhou' })] });
 
     const [doAutor] = await listarEncaminhamentos({ problemaId: 42, usuarioId: 7, role: 'citizen' });
-    expect(doAutor.pode_registrar_resposta).toBe(true);
+    expect(doAutor.pode_registrar_resposta).toBe(false);
+    expect(doAutor.pode_reenviar).toBe(true);
 
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
-      .mockResolvedValueOnce({ rows: [linhaEncaminhamento({ status: 'enviado' })] });
+      .mockResolvedValueOnce({ rows: [linhaEnviada()] });
 
     const [deOutro] = await listarEncaminhamentos({
       problemaId: 42,
@@ -272,5 +386,6 @@ describe('encaminhamentos', () => {
       role: 'citizen',
     });
     expect(deOutro.pode_registrar_resposta).toBe(false);
+    expect(deOutro.pode_reenviar).toBe(false);
   });
 });

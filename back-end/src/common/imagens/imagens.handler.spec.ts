@@ -107,8 +107,33 @@ describe('enviarEvidenciaProblema', () => {
     ]);
   });
 
-  it('recusa evidência de quem não é autor nem moderação, antes de tocar no storage', async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [problemaDoAutor] });
+  it('aceita evidência de quem apoiou o problema', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [problemaDoAutor] })
+      .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+      .mockResolvedValueOnce({ rows: [{ total: 1 }] })
+      .mockResolvedValueOnce({ rows: [{ id: 14, url: 'http://minio/apoiador.jpg' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 82 }] });
+    mockEnviarObjeto.mockResolvedValue('http://minio/apoiador.jpg');
+
+    const imagem = await enviarEvidenciaProblema({
+      problemaId: 5,
+      usuarioId: 99,
+      role: 'citizen',
+      nomeArquivo: 'foto.jpg',
+      mimetype: 'image/jpeg',
+      conteudo: jpeg,
+    });
+
+    expect(imagem.id).toBe(14);
+    expect(mockQuery.mock.calls[1][0]).toContain('FROM problema_apoios');
+    expect(mockQuery.mock.calls[4][1]?.[2]).toBe(99);
+  });
+
+  it('recusa evidência de quem não é autor, não apoiou e não modera, antes de tocar no storage', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [problemaDoAutor] })
+      .mockResolvedValueOnce({ rows: [] });
 
     await expect(
       enviarEvidenciaProblema({
@@ -119,7 +144,7 @@ describe('enviarEvidenciaProblema', () => {
         mimetype: 'image/jpeg',
         conteudo: jpeg,
       }),
-    ).rejects.toThrow('Você não pode adicionar evidência a este problema.');
+    ).rejects.toThrow('Apoie este problema para poder adicionar evidência a ele.');
     expect(mockEnviarObjeto).not.toHaveBeenCalled();
   });
 
