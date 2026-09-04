@@ -26,7 +26,6 @@ export default defineConfig({
       NODE_ENV: 'test',
       PORT: '5000',
       CORS_ORIGINS: 'http://localhost:19006,http://localhost:3000',
-      GOOGLE_API_KEY: 'test-google-key',
       JWT_SECRET: 'test-secret-key-123456',
     },
   },

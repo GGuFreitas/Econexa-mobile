@@ -9,8 +9,11 @@ import {
   atualizarMobilizacao,
   atualizarStatusMobilizacao,
   criarMobilizacao,
+  listarMobilizacoes,
   obterMobilizacao,
+  participarDaMobilizacao,
   registrarResultadoMobilizacao,
+  sairDaMobilizacao,
 } from './mobilizacoes.handler.js';
 
 const RESULTADO = { descricao: 'Recolhemos dez sacos de entulho.' };
@@ -18,6 +21,7 @@ const RESULTADO = { descricao: 'Recolhemos dez sacos de entulho.' };
 async function mobilizacaoAgendada(criadorId: number, problemaId: number): Promise<number> {
   const mobilizacao = await criarMobilizacao({
     usuarioId: criadorId,
+    role: 'citizen',
     problemaId,
     titulo: 'Mutirão da praça',
     dataInicio: '2026-10-01T09:00:00Z',
@@ -125,5 +129,54 @@ describe('mobilizações: só o criador ou a moderação gerencia', () => {
 
     expect(concluida.status).toBe('realizada');
     expect(concluida.resultado_descricao).toBe(RESULTADO.descricao);
+  });
+
+  it('usuario_participa reflete quem está inscrito e some quando a pessoa sai', async () => {
+    const antes = await obterMobilizacao(mobilizacaoId, estranho, 'citizen');
+    expect(antes.usuario_participa).toBe(false);
+    expect(antes.cont_participantes).toBe(0);
+
+    await participarDaMobilizacao(mobilizacaoId, estranho);
+
+    const inscrito = await obterMobilizacao(mobilizacaoId, estranho, 'citizen');
+    const paraOutro = await obterMobilizacao(mobilizacaoId, criador, 'citizen');
+    expect(inscrito.usuario_participa).toBe(true);
+    expect(inscrito.cont_participantes).toBe(1);
+    expect(paraOutro.usuario_participa).toBe(false);
+    expect(paraOutro.cont_participantes).toBe(1);
+
+    await sairDaMobilizacao(mobilizacaoId, estranho);
+
+    const depois = await obterMobilizacao(mobilizacaoId, estranho, 'citizen');
+    expect(depois.usuario_participa).toBe(false);
+    expect(depois.cont_participantes).toBe(0);
+  });
+
+  it('a listagem devolve contador e participação, não só as colunas cruas', async () => {
+    await participarDaMobilizacao(mobilizacaoId, estranho);
+
+    const paraInscrito = await listarMobilizacoes({ problemaId }, estranho, 'citizen');
+    const paraAnonimo = await listarMobilizacoes({ problemaId });
+
+    expect(paraInscrito[0].cont_participantes).toBe(1);
+    expect(paraInscrito[0].usuario_participa).toBe(true);
+    expect(paraInscrito[0].pode_gerenciar).toBe(false);
+    expect(paraAnonimo[0].cont_participantes).toBe(1);
+    expect(paraAnonimo[0].usuario_participa).toBe(false);
+    expect(paraAnonimo[0].pode_gerenciar).toBe(false);
+  });
+
+  it('a criação já devolve o contrato completo para o criador', async () => {
+    const nova = await criarMobilizacao({
+      usuarioId: criador,
+      role: 'citizen',
+      problemaId,
+      titulo: 'Mutirão do córrego',
+      dataInicio: '2026-11-01T09:00:00Z',
+    });
+
+    expect(nova.cont_participantes).toBe(0);
+    expect(nova.usuario_participa).toBe(false);
+    expect(nova.pode_gerenciar).toBe(true);
   });
 });

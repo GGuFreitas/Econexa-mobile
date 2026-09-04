@@ -40,7 +40,6 @@ export function CriarMobilizacaoForm({ problemaId, coordenada, onSubmit, submitt
   const submit = (data: z.infer<typeof schema>) => {
     onSubmit({
       problemaId,
-      usuarioId: 0, // será preenchido pelo backend via auth
       titulo: data.titulo,
       descricao: data.descricao || undefined,
       dataInicio: data.dataInicio,

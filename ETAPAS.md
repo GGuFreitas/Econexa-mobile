@@ -6,7 +6,12 @@ o que ficou de fora e as dívidas assumidas. Commits granulares por PR.
 ## PR-M1 — Fundação (já no master)
 
 Estrutura base Expo + React Navigation + Redux + React Query + Paper.
-Telas de auth (Login/Registro) funcionando contra o backend.
+Tela de login funcionando contra o backend.
+
+> **Correção de registro histórico (PR-B2):** esta entrada dizia "telas de auth
+> (Login/Registro) funcionando". A de **registro nunca existiu** — `useRegister` e
+> `api/register.ts` estavam no repositório desde aqui e não eram importados por
+> componente nenhum. A tela de cadastro só passou a existir no PR-B2.
 
 ## PR-0 — Migração Expo 48 → 57 + Node 24 LTS
 
@@ -615,6 +620,142 @@ ali trocaria peso morto no `dist/` por um buraco de verificação.
 Depois da mudança, `npm run build` produz um `dist/` com zero `*.spec.js`, zero
 `*.itest.js` e nenhuma pasta `tests/`.
 
+## PR-B2 — Contratos e correções funcionais
+
+Fecha as divergências entre o que o backend devolve e o que o app espera, os números que
+o app mostrava sem serem o que o rótulo dizia, e as telas que existiam no código sem
+caminho de chegada.
+
+### Contadores
+
+- **`cont_visualizacoes` saiu do banco e do payload.** `incrementarVisualizacoes` rodava
+  em **todo** `GET /problemas/:id`, rota pública: um F5 valia +1, sem dedupe, um `UPDATE`
+  na linha mais quente da tabela a cada leitura — e **o número nunca era lido por
+  ninguém**, nem no backend, nem no app.
+  **Decisão: remover a escrita e a coluna** (migration `20260904_015`, `down` recria
+  zerada). Parar de escrever e manter a coluna deixaria um número congelado e mentiroso
+  viajando na API; o dado nunca foi confiável (contava recarga de página, não visita), e
+  ninguém perde nada que estivesse usando.
+- **`cont_apoios_ponderados` não foi tocado.** Hoje é idêntico a `cont_apoios` porque
+  `peso_voto` é literal `1` e nunca sofre `UPDATE`, mas é o `ORDER BY` primário de
+  `listarProblemas` e `tendenciasProblemas`, e o M10 existe para dar peso diferente ao
+  voto. Removê-lo agora seria desfazer o gancho da funcionalidade seguinte.
+
+### Agregações que ignoravam os filtros recebidos
+
+`GET /problemas/estatisticas` e `/tendencias` fazem `parse(listarProblemasQuerySchema, ...)`,
+que aceita `lat`, `lng`, `raio` e `tags`, e passavam o objeto para um `FiltroAgregacao`
+que só lia `status/tipo/escopo/causaId`. Compilava porque o *excess property check* do
+TypeScript não vale para variáveis. Efeito: **as agregações eram globais** — o app pedia
+"quantos problemas ativos em 8 km" e recebia a contagem do país inteiro, com rótulo
+regional.
+
+- `listarProblemas`, `contarPorCausa`, `contarPorTipo`, `totalProblemas` e
+  `tendenciasProblemas` passaram a compartilhar **um** construtor de filtro
+  (`construirFiltro`), com a mesma cláusula `ST_DWithin(... ::geography, raio)`.
+  `FiltroProblemas` e `ListarProblemasQuery` viraram tipos reais, um estendendo o outro.
+- **Filtro por múltiplas tags estava quebrado ponta a ponta.** O mobile mandava
+  `tags=a,b` (`join(',')`) e o backend fazia `z.string().transform(v => [v])` → `['a,b']`,
+  que só casaria com uma tag literalmente chamada `"a,b"`. Era latente (nada na UI passa
+  tags). Corrigido dos dois lados: o app manda `tags` repetido
+  (`paramsSerializer: { indexes: null }` no axios central) e o schema, além do array,
+  também divide a string por vírgula.
+- Mobile: `api/params.ts` passou a ser o único serializador de filtro — `listar.ts` e
+  `estatisticas.ts` tinham cópias divergentes da mesma função, e a de estatísticas nem
+  mandava `tags`.
+- Mobile: o card **"Seu impacto"** do `PerfilScreen` mostrava `estatisticas?.total ?? 0`,
+  contagem regional com nome de métrica pessoal. Virou "Na sua região", diz o raio e
+  perdeu o `?? 0`. Impacto do usuário só existe no M10.
+- Mobile: `ProblemMap` exibia `mobilizando={porCausa.reduce((a, c) => a + c.total, 0)}` —
+  a soma de `porCausa` é por definição o próprio `total`, então "N mobilizando" repetia a
+  contagem de problemas. **A métrica foi removida**: não há fonte de dado para ela.
+  `PertoDeVoce` ficou só com o total e recebe o raio por prop.
+
+### Contrato backend ↔ mobile das mobilizações
+
+- **`usuario_participa` não existia no backend.** O tipo do mobile declarava, o servidor
+  nunca devolvia, e o `MobilizacaoDetailScreen` lia `undefined`: o botão dizia
+  "Participar" para sempre, inclusive para quem já estava inscrito. Agora é um `EXISTS`
+  correlacionado na mesma consulta, com o id do token.
+- **`cont_participantes` sumia na listagem.** `comContadores` era aplicado em seis
+  handlers, menos em `listarMobilizacoes`, que devolvia `result.rows` cru — o
+  `MobilizacaoCard` mostrava `0` para todo mundo. Virou subconsulta na própria listagem,
+  uma ida ao banco em vez de uma por linha. As mutações releem depois do commit, então
+  toda resposta de mobilização tem a mesma forma.
+- **Rollback otimista escrevia em chave-lixo.** `useParticipar` e `useSair` faziam
+  `qc.setQueryData(['mobilizacao', ctx.prev], ctx.prev)`, usando o **objeto de dados**
+  como parte da chave: o rollback criava uma entrada nova no cache e deixava o valor
+  otimista errado na tela. Agora usa o `id` da mutação, com teste que confere o valor
+  restaurado **e** que nenhuma chave nova aparece.
+- **`CriarMobilizacaoInput` exigia `usuarioId`** que o cliente não manda (o servidor pega
+  do JWT) — o formulário preenchia `usuarioId: 0` para satisfazer o tipo. O campo saiu do
+  tipo do mobile.
+
+### Telas inalcançáveis e sessão
+
+- **Não existia tela de cadastro.** `useRegister` e `api/register.ts` estavam lá desde o
+  M1 e **não eram importados por componente nenhum**; o `LoginScreen` só renderizava o
+  `LoginForm`. O `ETAPAS.md` afirmava que "telas de auth (Login/Registro)" funcionavam
+  desde o PR-M1 — **não funcionavam**. Entraram `RegisterForm`, `RegisterScreen`, a rota
+  `Cadastro` no stack e o link "Criar conta" no login, sem campo `role` (que o PR-A
+  removeu). Depois de cadastrar, o app já faz login; se o login falhar, avisa e volta
+  para a tela de login em vez de deixar a pessoa presa.
+- **`CriarMobilizacao` estava registrada no navigator e era inalcançável** — nenhum
+  `navigate('CriarMobilizacao')` existia, o que tornava mortos `CriarMobilizacaoScreen`,
+  `CriarMobilizacaoForm` e `useCriarMobilizacao`, enquanto o empty state convidava a "ser
+  o primeiro a organizar uma ação" sem botão algum. `MobilizacoesListScreen` recebeu
+  `onCriar` e o oferece no cabeçalho da lista e dentro do estado vazio.
+- **401 não fazia nada.** O interceptor de `services/api.ts` convertia tudo em
+  `new Error(msg)`, destruindo o status: nenhum consumidor distinguia 401/403/404/429 de
+  falha de rede. Agora rejeita com `ApiError` (que carrega `status` e continua sendo um
+  `Error`), e um `401` fora de `/auth/login` e `/auth/register` **derruba a sessão**.
+  `shared/utils/mensagemDeErro.ts` traduz o status em texto, e é função pura testada.
+- **Correção de premissa:** a auditoria dizia que `logout` "não é despachada por
+  ninguém". Não era bem isso — o `Header` genérico tinha um botão "Sair" fixo, o que
+  colocava logout em **toda** tela com cabeçalho, inclusive na de cadastro, onde ninguém
+  está logado. O botão saiu do `Header` e virou "Sair da conta" explícito no
+  `PerfilScreen`, que é onde o escopo pedia.
+- `LoginForm` tinha ficado de fora da correção de `helperText` do M9.5 (renderizava o
+  erro num `<Text>` com `#b91c1c` no JSX) e era a única função de componente sem tipagem.
+  Corrigidos os dois; o `LoginScreen` também perdeu as cores fixas.
+  **Achado:** com `strict: false` no `mobile/tsconfig.json`, `z.infer` marca **todos** os
+  campos como opcionais, então `LoginFormValues`/`RegisterFormValues` são declarados à
+  mão em vez de inferidos do schema.
+- A tab `Mapa` era a única sem `tabBarIcon`. Ganhou `map-marker-radius`.
+
+### Higiene
+
+- `features/{apoios,niveis,problemas,regioes,usuarios}` eram `.gitkeep` vazios,
+  sugerindo domínio que mora em `common/`. Removidos. `features/peticoes/` fica: é o
+  único com código (`gerarPeticao`, importado por `encaminhamentos.handler.ts`).
+- **`shared/queue.ts` removido.** `enqueue` só fazia `console.warn('worker ausente')` e
+  não era chamado de lugar nenhum. **Decisão: remover**, pelo mesmo critério que tirou as
+  abilities órfãs no PR-A — não era um seam, era um enfeite que anunciava processamento
+  assíncrono inexistente. O M11 cria a interface junto com o worker que a consumir; o
+  plano do M11 abaixo foi corrigido para dizer isso.
+- **`env.GOOGLE_API_KEY` removida.** Era `z.string().nonempty()`, derrubava o boot de quem
+  não a definisse, e a string não aparecia em nenhum outro arquivo do backend. Saiu do
+  `env.ts`, dos dois configs de vitest, do `.env.example` e do `docker-compose.yml`. A
+  seção 4 do `back-end.md` passou a dizer que a integração com IA **não existe**.
+- **`idx_denuncias_problema` removido** (migration `20260904_016`): virou redundante com
+  `uq_denuncias_problema_usuario`, cujo prefixo é a mesma coluna. O planner usa o unique
+  para tudo que o antigo servia; manter os dois custava escrita e disco.
+
+### Testes
+
+- `problemas.itest.ts`: estatísticas e tendências param no raio pedido; a soma de
+  `porCausa` bate com `total`; filtro por várias tags casa tag a tag e **não** pela
+  string junta; o schema aceita as três codificações de `tags`.
+- `mobilizacoes.itest.ts`: `usuario_participa` acompanha inscrição e saída, é por
+  usuário, e a listagem devolve contador e participação; a criação já devolve o contrato
+  completo.
+- `migracoes.itest.ts`: `cont_visualizacoes` some e volta no ciclo de rollback;
+  `idx_denuncias_problema` some e o unique fica.
+- Mobile `participacao.hooks.spec.tsx`: update otimista, rollback na chave certa e
+  ausência de chave-lixo no cache.
+- Mobile `mensagemDeErro.spec.ts`: 401, 429, sem status (rede) e repasse da mensagem do
+  servidor.
+
 ## Planejado — M10, M11, M12
 
 Os três estão **apenas planejados**. Nada deles foi implementado.
@@ -645,8 +786,9 @@ Objetivo: avisar quem acompanha um problema quando ele anda.
   apoiou (`ENCAMINHADO`, `RESPOSTA_RECEBIDA`, `STATUS_ALTERADO`, `RESOLVIDO`,
   `MOBILIZACAO_CRIADA`).
 - Modelo: tabela de notificações por usuário com lido/não lido, alimentada a partir
-  do evento; `shared/queue.ts` (hoje `SyncQueue`) é o ponto de troca para processar
-  fora do request.
+  do evento. **Não há mais `shared/queue.ts`** (removido no PR-B2 por ser um `SyncQueue`
+  sem chamador): se o M11 quiser processar fora do request, cria a interface **junto com
+  o worker** que a consome, em vez de deixar um seam decorativo esperando.
 - Endpoints: listar notificações, marcar como lida.
 - Mobile: badge no ícone e uma tela de lista.
 - Fora de escopo deliberado: push nativo, OneSignal, e-mail para o cidadão,
@@ -711,3 +853,19 @@ dono** — o domínio `eventos` inteiro saiu, então o caminho não existe mais.
 - **A suíte de integração exige Docker na máquina.** Não é uma dívida a quitar, é o
   preço de testar PostGIS de verdade — mas quem não tem Docker no ambiente roda só
   `npm run test`.
+- **`problema_apoios` tem `ON DELETE CASCADE` para `users` e ninguém decrementa
+  `problemas.cont_apoios`.** Apagar um usuário levaria embora as linhas de apoio dele sem
+  mexer nos contadores, que ficariam permanentemente inflados. Hoje é **latente**: não
+  existe exclusão de conta em lugar nenhum — nem rota, nem tela, nem script. Registrado
+  aqui de propósito: **quem implementar exclusão de conta precisa reconciliar os
+  contadores no mesmo caminho** (o `UPDATE ... FROM (SELECT COUNT ...)` da migration
+  `011` é o modelo pronto). Exclusão de conta e LGPD seguem fora de escopo.
+- **Sessão não é persistida.** `authSlice` vive só em memória: fechar o app desloga.
+  `redux-persist`/`SecureStore` ficaram deliberadamente fora do PR-B2.
+- **Não há refresh token, recuperação de senha nem verificação de e-mail.** O JWT dura 7
+  dias e, quando expira, o interceptor derruba a sessão e o `AuthGuard` mostra o login —
+  que é o comportamento correto, mas não é renovação. Tudo isso segue fora de escopo.
+- **`mobile/tsconfig.json` tem `strict: false`.** Além de deixar passar componente sem
+  tipo (o que o PR-B2 corrigiu caso a caso), isso quebra a inferência do zod:
+  `z.infer` marca todos os campos como opcionais. Ligar `strict` é uma tarefa própria,
+  com efeito em cascata pelo app inteiro.
