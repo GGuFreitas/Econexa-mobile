@@ -8,14 +8,14 @@ describe('auth helpers', () => {
       id: 7,
       name: 'Bia',
       email: 'b@e.com',
-      role: 'organization',
+      role: 'specialist',
       vote_weight: 3,
     });
     expect(result).toEqual({
       id: '7',
       name: 'Bia',
       email: 'b@e.com',
-      role: 'organization',
+      role: 'specialist',
       vote_weight: 3,
     });
   });

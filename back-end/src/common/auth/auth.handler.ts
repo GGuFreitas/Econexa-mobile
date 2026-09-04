@@ -33,7 +33,7 @@ export async function registerUser(input: RegisterInput) {
   }
 
   const passwordHash = await hash(input.password);
-  const created = await sql.insertUser({ nome, email, passwordHash, role: input.role ?? 'citizen' });
+  const created = await sql.insertUser({ nome, email, passwordHash, role: 'citizen' });
 
   return { user: toPublic(created) };
 }
