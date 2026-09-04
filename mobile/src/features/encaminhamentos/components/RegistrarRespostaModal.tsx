@@ -7,6 +7,7 @@ import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
 import { useRegistrarResposta } from '../hooks/useRegistrarResposta';
+import { AVISO_RESPOSTA_NAO_VERIFICADA } from '../utils/status';
 import type { Encaminhamento } from '../types';
 
 const schema = z.object({
@@ -59,12 +60,17 @@ export function RegistrarRespostaModal({
   return (
     <Modal visible={encaminhamento !== null} onDismiss={fechar}>
       <View style={[styles.modal, { backgroundColor: theme.colors.surface }]}>
-        <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>Registrar resposta</Text>
+        <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>
+          Relatar a resposta do órgão
+        </Text>
         {encaminhamento && (
           <Text style={[styles.subtitulo, { color: theme.colors.textSecondary }]}>
             {encaminhamento.orgao.nome} · {encaminhamento.referencia}
           </Text>
         )}
+        <Text style={[styles.aviso, { color: theme.colors.textTertiary }]}>
+          {AVISO_RESPOSTA_NAO_VERIFICADA}
+        </Text>
 
         <Controller
           control={control}
@@ -126,6 +132,7 @@ const styles = StyleSheet.create({
   modal: { margin: spacing.four, padding: spacing.four, borderRadius: 12, gap: spacing.two },
   titulo: { fontSize: typography.fontSize.lg, fontWeight: '700' },
   subtitulo: { fontSize: typography.fontSize.sm },
+  aviso: { fontSize: typography.fontSize.xs, fontStyle: 'italic' },
   erro: { fontSize: typography.fontSize.xs },
   acoes: {
     flexDirection: 'row',

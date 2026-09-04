@@ -10,6 +10,8 @@ const ICONE_POR_TIPO: Record<ProblemaEventoTipo, keyof typeof MaterialCommunityI
   PROBLEMA_CRIADO: 'map-marker-plus-outline',
   EVIDENCIA_ADICIONADA: 'image-outline',
   COMENTARIO_CRIADO: 'comment-text-outline',
+  APOIO_CRIADO: 'thumb-up-outline',
+  APOIO_REMOVIDO: 'thumb-down-outline',
   MOBILIZACAO_CRIADA: 'account-group-outline',
   MOBILIZACAO_REALIZADA: 'check-circle-outline',
   ENCAMINHADO: 'send-outline',

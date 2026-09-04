@@ -4,13 +4,18 @@ const TITULO_POR_TIPO: Record<ProblemaEventoTipo, string> = {
   PROBLEMA_CRIADO: 'Problema registrado',
   EVIDENCIA_ADICIONADA: 'Evidência adicionada',
   COMENTARIO_CRIADO: 'Novo comentário',
+  APOIO_CRIADO: 'Apoiou o problema',
+  APOIO_REMOVIDO: 'Retirou o apoio',
   MOBILIZACAO_CRIADA: 'Mobilização criada',
   MOBILIZACAO_REALIZADA: 'Mobilização realizada',
   ENCAMINHADO: 'Encaminhado ao órgão responsável',
-  RESPOSTA_RECEBIDA: 'Resposta do órgão registrada',
+  RESPOSTA_RECEBIDA: 'Resposta relatada pelo cidadão',
   STATUS_ALTERADO: 'Status alterado',
   RESOLVIDO: 'Problema resolvido',
 };
+
+export const AVISO_RESPOSTA_NAO_VERIFICADA =
+  'Relato de quem encaminhou. O Mutira não confirma a resposta junto ao órgão.';
 
 export const STATUS_LABEL: Record<string, string> = {
   ativo: 'Ativo',
@@ -46,8 +51,13 @@ function descrever(evento: ProblemaEvento): string | undefined {
     case 'RESPOSTA_RECEBIDA': {
       const orgao = texto(dados, 'orgao_nome');
       const protocolo = texto(dados, 'protocolo');
-      if (orgao && protocolo) return `${orgao} — protocolo ${protocolo}`;
-      return orgao ?? (protocolo ? `Protocolo ${protocolo}` : undefined);
+      const detalhe =
+        orgao && protocolo
+          ? `${orgao} — protocolo ${protocolo}`
+          : (orgao ?? (protocolo ? `Protocolo ${protocolo}` : undefined));
+      return detalhe
+        ? `${detalhe}. ${AVISO_RESPOSTA_NAO_VERIFICADA}`
+        : AVISO_RESPOSTA_NAO_VERIFICADA;
     }
     case 'STATUS_ALTERADO': {
       const de = rotuloStatus(dados, 'de');

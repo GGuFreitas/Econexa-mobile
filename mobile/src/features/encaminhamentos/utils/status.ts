@@ -27,3 +27,11 @@ export function opcoesDeOrgao(
 ): { label: string; value: number }[] {
   return orgaos.map((orgao) => ({ label: `${orgao.nome} (${orgao.esfera})`, value: orgao.id }));
 }
+
+export const AVISO_RESPOSTA_NAO_VERIFICADA =
+  'O Mutira não confirma esta resposta junto ao órgão: é o relato de quem encaminhou.';
+
+export function rotuloDoRelato(autor: string): string {
+  const nome = autor?.trim();
+  return nome ? `Resposta relatada por ${nome}` : 'Resposta relatada pelo cidadão';
+}

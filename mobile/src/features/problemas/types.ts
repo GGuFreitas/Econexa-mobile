@@ -30,7 +30,13 @@ export interface Problema {
 
 export interface ProblemaDetalhe extends Problema {
   pode_encaminhar: boolean;
+  pode_adicionar_evidencia: boolean;
   transicoes_permitidas: ProblemaStatus[];
+}
+
+export interface ResultadoCriacaoProblema {
+  criado: boolean;
+  problema: Problema;
 }
 
 export interface ProblemaQuery {
@@ -92,6 +98,8 @@ export type ProblemaEventoTipo =
   | 'PROBLEMA_CRIADO'
   | 'EVIDENCIA_ADICIONADA'
   | 'COMENTARIO_CRIADO'
+  | 'APOIO_CRIADO'
+  | 'APOIO_REMOVIDO'
   | 'MOBILIZACAO_CRIADA'
   | 'MOBILIZACAO_REALIZADA'
   | 'ENCAMINHADO'

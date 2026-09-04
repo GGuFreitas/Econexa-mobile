@@ -47,17 +47,19 @@ src/
       hooks/           # useComentarios, useCriarComentario, useExcluirComentario
       components/      # ComentariosList, ComentarioItem, ComentarioForm
     encaminhamentos/
-      types.ts         # Orgao, Encaminhamento (+ pode_registrar_resposta do servidor)
-      api/             # listarOrgaos, listar, criar, registrarResposta
+      types.ts         # Orgao, Encaminhamento (+ pode_registrar_resposta,
+                       # pode_reenviar, falha_motivo e resposta_verificada do servidor)
+      api/             # listarOrgaos, listar, criar, registrarResposta, reenviar
       hooks/           # useOrgaos, useEncaminhamentos, useCriarEncaminhamento,
-                       # useRegistrarResposta
+                       # useRegistrarResposta, useReenviarEncaminhamento
       components/      # EncaminhamentosList, EncaminhamentoCard,
                        # EncaminharProblemaModal, RegistrarRespostaModal
-      utils/           # status (rótulos, cores, opcoesDeOrgao)
+      utils/           # status (rótulos, cores, opcoesDeOrgao, rotuloDoRelato)
     mobilizations/     # types, api, hooks, components, screens, utils
   shared/
     theme/             # cores, espaçamento, tipografia, theme (light/dark)
-    ui/                # Button, TextInput, Chip, Card, BottomSheet, FAB, Tabs...
+    ui/                # Button, TextInput (+ helperText), Chip, Card, BottomSheet,
+                       # FAB, Tabs...
     hooks/             # useAppTheme, useLocalizacao, useAppQueryClient
     utils/             # dataRelativa (formatarDataRelativa)
   store/               # authSlice, themeSlice (Redux)
@@ -74,14 +76,21 @@ Importações usam aliases (`@features`, `@shared`, `@store`, `@navigation`,
 `Problema` (em `features/problemas/types.ts`) segue o backend:
 `causa_id` (1-8), `tipo` (problema|ponto_positivo|cultural), `status`
 (ativo|em_analise|encaminhado|resolvido|removido), `cont_apoios`,
-`distancia_m?`. `role` do usuário = `citizen|specialist|organization`.
+`distancia_m?` (**metros de verdade** desde o M9.5; antes o backend devolvia graus com
+nome de metro). `role` do usuário = `citizen|specialist|organization`.
+
+`POST /problemas` **não devolve mais o problema direto**: devolve
+`{ criado: boolean, problema: Problema }`, com **201** quando criou e **200** quando o
+servidor encontrou um registro parecido no mesmo ponto. `CriarProblemaScreen` olha
+`criado` — se vier `false`, avisa que já existe um registro ali e abre o detalhe dele em
+vez de fingir publicação. O status HTTP sozinho nunca vira "publicado com sucesso".
 
 Endpoints consumidos:
 
 | Endpoint | Onde |
 |---|---|
-| `GET/POST /problemas` | mapa, feed, criar problema |
-| `GET /problemas/:id` | `useProblema` (traz `pode_encaminhar` e `transicoes_permitidas`) |
+| `GET/POST /problemas` | mapa, feed, criar problema (`POST` devolve `{ criado, problema }`) |
+| `GET /problemas/:id` | `useProblema` (traz `pode_encaminhar`, `pode_adicionar_evidencia` e `transicoes_permitidas`) |
 | `GET /problemas/estatisticas`, `GET /problemas/tendencias` | filtros do mapa, perfil |
 | `POST/DELETE /problemas/:id/apoios` | `useApoio` |
 | `POST/GET /problemas/:id/denuncias` | `useDenuncia` |
@@ -93,6 +102,7 @@ Endpoints consumidos:
 | `GET /orgaos` | `useOrgaos` |
 | `GET/POST /problemas/:id/encaminhamentos` | feature encaminhamentos |
 | `POST /problemas/:id/encaminhamentos/:id/resposta` | `useRegistrarResposta` |
+| `POST /problemas/:id/encaminhamentos/:id/reenviar` | `useReenviarEncaminhamento` |
 | `GET/POST /mobilizacoes`, `GET /mobilizacoes/:id`, `PATCH /mobilizacoes/:id`, `PATCH /mobilizacoes/:id/status`, `POST /mobilizacoes/:id/resultado`, `POST/DELETE /mobilizacoes/:id/participar` | feature mobilizations |
 
 `Comentario` (em `features/comentarios/types.ts`) traz `autor: { id, nome }` e
@@ -100,10 +110,34 @@ Endpoints consumidos:
 API permite — esconder o botão de excluir não é mecanismo de segurança; o
 `DELETE` responde `403` para comentário de outro usuário.
 
-O mesmo vale para o M9: `pode_encaminhar`, `transicoes_permitidas` (no detalhe do
-problema) e `pode_registrar_resposta` (em cada encaminhamento) vêm calculados do
+O mesmo vale para as permissões do M9/M9.5: `pode_encaminhar`,
+`pode_adicionar_evidencia`, `transicoes_permitidas` (no detalhe do problema),
+`pode_registrar_resposta` e `pode_reenviar` (em cada encaminhamento) vêm calculados do
 servidor. `opcoesDeStatus` só monta as opções que a API listou; se a lista vier
 vazia, o botão nem aparece — e a API responde `403` de qualquer forma.
+
+Cada booleano serve a **um** conceito. Até o M9 o `EvidenciasProblema` recebia
+`podeAdicionar={problema.pode_encaminhar}`, ou seja, um campo de encaminhamento
+decidindo evidência; agora usa `pode_adicionar_evidencia`, que o servidor calcula como
+"autor, quem apoiou ou moderação". E `pode_encaminhar` deixou de mentir: só é `true` se
+o problema não estiver `removido` **e** existir órgão ativo sem encaminhamento aberto —
+as duas travas que o `POST` de encaminhamento sempre aplicou.
+
+### Resposta do órgão é relato, não confirmação
+
+O órgão não tem conta nem canal de retorno: quem digita a resposta é o próprio autor do
+encaminhamento. O app não pode apresentar isso como confirmação institucional.
+`Encaminhamento.resposta_verificada` vem `false` do servidor, o `EncaminhamentoCard`
+rotula a resposta com o nome de quem a relatou (`rotuloDoRelato`) e mostra o aviso de
+`AVISO_RESPOSTA_NAO_VERIFICADA`, e o `RegistrarRespostaModal` traz o mesmo aviso antes do
+formulário. Na timeline, `RESPOSTA_RECEBIDA` aparece como "Resposta relatada pelo
+cidadão".
+
+### Encaminhamento que falhou tem saída
+
+`falha_motivo` traz do servidor por que o e-mail não saiu, e `pode_reenviar` habilita o
+botão "Reenviar ao órgão" (`useReenviarEncaminhamento`) para os estados `pendente` e
+`falhou`. É ação manual: não há retry automático em lugar nenhum.
 
 ## Upload de evidência
 
@@ -115,9 +149,11 @@ assinatura do arquivo, guarda no MinIO e devolve o registro da imagem.
 - `ProblemForm` só **escolhe** a foto (picker + manipulator) e entrega o arquivo para
   a tela; ele não faz mais upload por conta própria.
 - `CriarProblemaScreen` cria o problema, sobe a evidência para o id retornado e avisa
-  se a foto falhar — o problema publicado não é perdido.
+  se a foto falhar — o problema publicado não é perdido. Quando o servidor devolve
+  `criado: false` (registro parecido no mesmo ponto), a tela não sobe a foto: abre o
+  detalhe do registro existente e explica que apoiar é o que libera anexar evidência.
 - `EvidenciasProblema` mostra a galeria e permite adicionar novas fotos a quem o
-  servidor autoriza.
+  servidor autoriza via `pode_adicionar_evidencia` (autor, quem apoiou ou moderação).
 
 ## Atividade do problema (timeline)
 
@@ -130,14 +166,15 @@ só escolhe o ícone e desenha. Não há composição client-side nem ordenaçã
 backend já devolve do mais recente para o mais antigo.
 
 Tipos renderizados: `PROBLEMA_CRIADO`, `EVIDENCIA_ADICIONADA`, `COMENTARIO_CRIADO`,
-`MOBILIZACAO_CRIADA`, `MOBILIZACAO_REALIZADA`, `ENCAMINHADO`, `RESPOSTA_RECEBIDA`,
-`STATUS_ALTERADO` e `RESOLVIDO`.
+`APOIO_CRIADO`, `APOIO_REMOVIDO`, `MOBILIZACAO_CRIADA`, `MOBILIZACAO_REALIZADA`,
+`ENCAMINHADO`, `RESPOSTA_RECEBIDA`, `STATUS_ALTERADO` e `RESOLVIDO`.
 
 A query é invalidada quando uma ação do app cria evento (comentar, criar/concluir
-mobilização, subir evidência, encaminhar, registrar resposta, alterar status). **Sem
-polling, sem websocket, sem tempo real.** Evento que o backend não emite não aparece:
-o app não deduz apoio por variação de contador. Apoio segue fora da timeline porque
-o backend ainda não emite evento para ele.
+mobilização, subir evidência, encaminhar, registrar resposta, alterar status, apoiar e
+desapoiar). **Sem polling, sem websocket, sem tempo real.** Evento que o backend não
+emite não aparece: o app continua sem deduzir apoio por variação de contador — o apoio
+entrou na timeline porque o backend passou a emitir `APOIO_CRIADO`/`APOIO_REMOVIDO`, não
+porque o app inferiu algo.
 
 ## Mapa Vivo
 
@@ -166,14 +203,30 @@ Clustering é implementado no app (sem lib externa) para controlar a UI do clust
   explícita** antes de disparar o e-mail (ação irreversível).
 - `EncaminhamentosList` mostra cada encaminhamento com estado
   (`Aguardando envio`, `Enviado ao órgão`, `Respondido`, `Falha no envio`),
-  referência e a resposta do órgão quando houver.
+  referência, o `falha_motivo` quando o envio não saiu e o relato de resposta quando
+  houver.
 - `RegistrarRespostaModal` só é alcançável quando o servidor devolve
-  `pode_registrar_resposta`.
+  `pode_registrar_resposta` — que agora exige `enviado_em`, ou seja, não dá para relatar
+  a resposta de um e-mail que nunca saiu.
+- "Reenviar ao órgão" aparece quando o servidor devolve `pode_reenviar`
+  (`pendente` ou `falhou`) e chama `useReenviarEncaminhamento`. É a saída manual para o
+  envio que falhou; não existe retry automático no app nem no backend.
 - "Alterar status" abre `AlterarStatusModal` com as opções de
   `transicoes_permitidas` e explica o efeito antes de confirmar.
 
 Todos os blocos tratam loading, vazio, erro, sucesso e ação em andamento. Nenhum
 deles usa `0` como fallback de dado ainda não carregado.
+
+## `shared/ui/TextInput`
+
+`TextInput` aceita `helperText` e **renderiza** a mensagem no `HelperText` do Paper, com
+`type="error"` quando o campo está em erro. Até o M9.5 a prop existia na assinatura mas
+era repassada por `{...props}` ao `PaperInput`, que não a conhece: toda mensagem de
+validação era engolida em silêncio, nos 10 usos de `ProblemForm`,
+`RegistrarRespostaModal`, `CriarMobilizacaoForm` e `ResultadoForm`.
+
+A decisão de mostrar (e com que `type`) fica em `shared/ui/helperText.ts`, função pura —
+é o que dá para testar sem renderizar árvore React Native.
 
 ## Testes e qualidade
 
@@ -184,9 +237,9 @@ deles usa `0` como fallback de dado ainda não carregado.
   e aceito desde o master)
 
 Stack de teste: **vitest em ambiente jsdom**, cobrindo funções puras
-(`apresentarEvento`, `opcoesDeStatus`, `clusterUtils`, `dataRelativa`), a camada
-`api/` com o axios mockado e os hooks com `renderHook` do
-`@testing-library/react` sobre um `QueryClientProvider`.
+(`apresentarEvento`, `opcoesDeStatus`, `clusterUtils`, `dataRelativa`,
+`estadoDoHelperText`, `rotuloDoRelato`), a camada `api/` com o axios mockado e os hooks
+com `renderHook` do `@testing-library/react` sobre um `QueryClientProvider`.
 
 **Não há render de árvore React Native nos testes**: o `react-native` do SDK 57 é
 distribuído com sintaxe Flow que o esbuild do vitest não transforma, e

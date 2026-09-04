@@ -133,20 +133,22 @@ export async function registrarResultadoMobilizacao(
     if (atual.status !== 'realizada') {
       await registrarMobilizacaoRealizada(atualizada, usuarioId, executor);
     }
+
+    for (const [index, url] of (input.imagens ?? []).entries()) {
+      await saveImagem(
+        {
+          tipo_entidade: 'mobilizacao',
+          entidade_id: id,
+          url,
+          principal: index === 0,
+          ordem: index,
+        },
+        executor,
+      );
+    }
+
     return atualizada;
   });
-
-  if (input.imagens?.length) {
-    for (const [index, url] of input.imagens.entries()) {
-      await saveImagem({
-        tipo_entidade: 'mobilizacao',
-        entidade_id: id,
-        url,
-        principal: index === 0,
-        ordem: index,
-      });
-    }
-  }
 
   return comContadores(mobilizacao);
 }

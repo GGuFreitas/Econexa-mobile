@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { corStatusEncaminhamento, opcoesDeOrgao, rotuloStatusEncaminhamento } from './status';
+import {
+  AVISO_RESPOSTA_NAO_VERIFICADA,
+  corStatusEncaminhamento,
+  opcoesDeOrgao,
+  rotuloDoRelato,
+  rotuloStatusEncaminhamento,
+} from './status';
 
 describe('status do encaminhamento', () => {
   it('traduz cada estado do encaminhamento', () => {
@@ -27,5 +33,20 @@ describe('opcoesDeOrgao', () => {
   it('não oferece órgão nenhum quando a lista ainda não carregou', () => {
     expect(opcoesDeOrgao()).toEqual([]);
     expect(opcoesDeOrgao([])).toEqual([]);
+  });
+});
+
+describe('resposta do órgão como relato do cidadão', () => {
+  it('atribui a resposta a quem encaminhou, não ao órgão', () => {
+    expect(rotuloDoRelato('Ana')).toBe('Resposta relatada por Ana');
+  });
+
+  it('não inventa autor quando o nome não veio', () => {
+    expect(rotuloDoRelato('   ')).toBe('Resposta relatada pelo cidadão');
+  });
+
+  it('avisa que a plataforma não confirma a resposta junto ao órgão', () => {
+    expect(AVISO_RESPOSTA_NAO_VERIFICADA).toContain('não confirma');
+    expect(AVISO_RESPOSTA_NAO_VERIFICADA).toContain('relato');
   });
 });
