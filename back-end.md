@@ -21,8 +21,57 @@ O backend usa `dotenv` e valida com `zod`. As variáveis obrigatórias são:
 - `DATABASE_URL`: conexão Postgres
 - `CORS_ORIGINS`: origens permitidas separadas por vírgula
 - `GOOGLE_API_KEY`: chave da API gratuita do Google para IA
+- `JWT_SECRET`: segredo do token (mínimo 16 caracteres)
+
+As demais têm default e só precisam ser informadas para sair do padrão local:
+
+| Variável | Default | Para que serve |
+|---|---|---|
+| `APP_PUBLIC_URL` | `http://localhost:19006` | base do link do problema citado na petição |
+| `MINIO_ENDPOINT` | `localhost` | host do MinIO (`minio` dentro do compose) |
+| `MINIO_PORT` | `9000` | porta da API do MinIO |
+| `MINIO_USE_SSL` | `false` | `true`/`false` |
+| `MINIO_ACCESS_KEY` | `minioadmin` | credencial de acesso |
+| `MINIO_SECRET_KEY` | `minioadmin123` | credencial secreta |
+| `MINIO_BUCKET` | `econexa-evidencias` | bucket das evidências |
+| `MINIO_PUBLIC_URL` | `http://localhost:9000` | base da URL guardada em `imagens.url` |
+| `SMTP_HOST` | `localhost` | host SMTP (`mailpit` dentro do compose) |
+| `SMTP_PORT` | `1025` | porta SMTP |
+| `SMTP_FROM` | `Mutira <nao-responda@mutira.local>` | remetente |
+| `SMTP_DEV_INBOX` | `caixa-dev@mutira.local` | caixa que recebe **todo** e-mail fora de produção |
+| `SMTP_ALLOW_EXTERNAL` | `false` | única chave que libera entrega externa, e só em produção |
 
 O arquivo de exemplo está em `back-end/.env.example`.
+
+## 2.1 Serviços do docker-compose
+
+| Serviço | Imagem | Portas | Para que |
+|---|---|---|---|
+| `postgres` | `postgis/postgis:15-3.4` | 5432 | banco principal com PostGIS |
+| `redis` | `redis:7-alpine` | 6379 | reservado (cache/fila ainda em memória) |
+| `minio` | `minio/minio` | 9000 (API), 9001 (console) | storage das evidências, volume `minio_data` |
+| `minio-bucket` | `minio/mc` | — | cria o bucket e libera leitura anônima na subida |
+| `mailpit` | `axllent/mailpit` | 1025 (SMTP), 8025 (web) | caixa de entrada local, volume `mailpit_data` |
+| `backend` | build local | 5000 | API |
+| `mobile` | build local | 19006/19001/19002 | Expo |
+
+## 2.2 Política de e-mail: nenhum e-mail real sai em desenvolvimento
+
+Disparar mensagem para um órgão público real com dado de teste é inaceitável, então
+o caminho é fechado no código, não na configuração:
+
+- `shared/email.ts` calcula o destinatário efetivo em `destinatarioEfetivo()`. Ele só
+  devolve o endereço original quando `NODE_ENV === 'production'` **e**
+  `SMTP_ALLOW_EXTERNAL === 'true'`. Em qualquer outro caso a mensagem vai para
+  `SMTP_DEV_INBOX`.
+- O envelope desviado recebe o prefixo `[DESENVOLVIMENTO]` no assunto e o
+  destinatário original no início do corpo, para conferência no Mailpit
+  (http://localhost:8025).
+- O transporte aponta para o Mailpit por variável de ambiente, sem credencial SMTP
+  real em lugar nenhum do repositório.
+- O seed de `orgaos` usa o domínio reservado `exemplo.invalid` (RFC 2606), que não
+  resolve: mesmo com o envio externo ligado por engano, não há para onde entregar.
+- Os testes mockam `nodemailer`/`@shared/email.js`: nenhuma requisição de rede.
 
 ## 3. Padrão de organização
 
@@ -44,6 +93,9 @@ src/
 - `common/`: building blocks transversais (auth, imagens, permissões). Não são features de domínio.
 - `shared/`: utilidades sem dependência de domínio.
 - Seams para evoluir sem reescrita: `shared/cache.ts` (interface `Cache` → `MemoryCache` hoje, Redis depois) e `shared/queue.ts` (interface `Queue` → `SyncQueue` hoje, BullMQ depois).
+- `shared/transacao.ts`: `emTransacao(fn)` pega um client do pool, roda `BEGIN`, entrega o `Executor` para o handler e faz `COMMIT`/`ROLLBACK`. As funções `.sql` que participam de transação recebem o executor como último parâmetro, com `dbPool` como default — quem não precisa de transação continua chamando igual.
+- `shared/storage.ts`: cliente MinIO (`enviarObjeto`, `removerObjeto`, `urlPublica`).
+- `shared/email.ts`: transporte nodemailer e a regra de destinatário seguro (seção 2.2).
 - Cross-feature leve: chama o `.sql` de outra feature. Cross-feature pesada: `queue.enqueue(...)`. Nenhuma feature importa o `routes/` de outra.
 
 ## 4. Fluxo de integração com Google AI
@@ -130,8 +182,12 @@ Use cron apenas para tarefas periódicas e previsíveis.
 - `knex` para migrations;
 - `@node-rs/argon2` para hash de senha (substitui bcrypt);
 - `jsonwebtoken` para tokens;
+- `@fastify/multipart` para upload de arquivo;
+- `minio` como cliente S3-compatível do storage de evidências;
+- `nodemailer` para o envio (apontado para o Mailpit em desenvolvimento);
 - `vitest` para testes;
-- `tsx` para rodar TS em dev.
+- `tsx` para rodar TS em dev;
+- `pino-pretty` (dev) para o transport do logger configurado em `app.ts`.
 
 ## 9. Boas práticas para não exagerar
 
@@ -165,11 +221,13 @@ O módulo `problemas` é a espinha dorsal do mapa. Implementado em `features/pro
 - Contadores (`cont_apoios`, `cont_apoios_ponderados`, `cont_visualizacoes`): o apoio já está implementado em `common/apoios/` (idempotente via PK `(problema_id, usuario_id)` + `ON CONFLICT DO NOTHING`; incrementa contadores só quando a linha é nova, ponderado pelo `peso_voto` do usuário). Rotas: `POST/DELETE /problemas/:id/apoios`.
 
 ### 11.1 Endpoints
-- `POST /problemas` (auth) — cria problema (título obrigatório, ≤10 tags, bbox Brasil).
+- `POST /problemas` (auth, rate-limit) — cria problema (título obrigatório, ≤10 tags, bbox Brasil); emite `PROBLEMA_CRIADO`.
 - `GET /problemas` — lista por proximidade (`lat`,`lng`,`raio`) ou por peso; filtros `status`, `tipo` (`problema`|`ponto_positivo`|`cultural`), `escopo`, `causaId`, `tags` (array, operador `&&`).
 - `GET /problemas/estatisticas` — agregações por causa e por tipo (+ total), respeitando os filtros; alimenta filtros do mapa.
 - `GET /problemas/tendencias` — top por `cont_apoios_ponderados` (`limite`, default 10) + filtros.
-- `GET /problemas/:id` — detalhe (incrementa `cont_visualizacoes`).
+- `GET /problemas/:id` (público, auth opcional) — detalhe (incrementa `cont_visualizacoes`); com token devolve também `pode_encaminhar` e `transicoes_permitidas`.
+- `PATCH /problemas/:id/status` (auth) — muda o status; emite `STATUS_ALTERADO` e `RESOLVIDO`.
+- `GET /problemas/:id/eventos` (público) — histórico do problema (seção 14).
 - `POST/DELETE /problemas/:id/apoios` (auth) — apoio idempotente ponderado por `peso_voto`.
 - `POST /problemas/:id/denuncias` (auth, rate-limit) — denúncia de conteúdo (`motivo` ∈ spam|conteudo_inadequado|duplicado|outro).
 - `GET /problemas/:id/denuncias` (auth) — lista denúncias (moderação).
@@ -212,5 +270,127 @@ Comentários de um problema. Implementado em `common/comentarios/` (handler + `.
 - `POST /problemas/:id/comentarios` (auth, rate-limit) — cria comentário (`conteudo` 1..1000, com trim).
 - `DELETE /problemas/:id/comentarios/:comentarioId` (auth) — exclui apenas o próprio comentário; responde `{ excluido: true }`.
 
-### 13.2 Lacuna conhecida: atividade do problema
-Não existe tabela nem endpoint de **eventos/atividade**, e `POST/DELETE /problemas/:id/apoios` não expõem quem apoiou nem quando. A timeline do app é montada no cliente com o que já existe (problema, imagens, comentários, mobilizações); eventos de apoio ficam de fora até que essa decisão de modelagem seja tomada.
+## 14. Módulo eventos do problema (`problema_eventos`)
+
+Histórico **append-only** por problema, implementado em `common/problemaEventos/`
+(handler + `.sql` + schemas) e exposto dentro de `routes/problemas/`. Não é um sistema
+genérico de eventos: não há event bus, event sourcing, CQRS nem fila. É uma tabela de
+histórico e um helper de escrita.
+
+- `problema_eventos`: `id`, `problema_id` (FK `ON DELETE CASCADE`), `tipo`,
+  `usuario_id` (FK `ON DELETE SET NULL`, **nulo** para evento sem ator conhecido),
+  `dados` (jsonb, só o necessário para renderizar), `criado_em`.
+- Índice `(problema_id, criado_em DESC, id DESC)` e CHECK do conjunto de tipos.
+- Sem update, sem delete, sem rota pública de escrita.
+
+### 14.1 Tipos e onde cada um é emitido
+
+| Tipo | Emitido em | `dados` |
+|---|---|---|
+| `PROBLEMA_CRIADO` | `criarProblema` | `titulo` |
+| `EVIDENCIA_ADICIONADA` | `enviarEvidenciaProblema` | `imagem_id`, `url` |
+| `COMENTARIO_CRIADO` | `criarComentario` | `comentario_id`, `trecho` (140 chars) |
+| `MOBILIZACAO_CRIADA` | `criarMobilizacao` | `mobilizacao_id`, `titulo` |
+| `MOBILIZACAO_REALIZADA` | `atualizarStatusMobilizacao` / `registrarResultadoMobilizacao` | `mobilizacao_id`, `titulo` |
+| `ENCAMINHADO` | `criarEncaminhamento` | `encaminhamento_id`, `orgao_nome`, `referencia` |
+| `RESPOSTA_RECEBIDA` | `registrarResposta` | `encaminhamento_id`, `orgao_nome`, `protocolo` |
+| `STATUS_ALTERADO` | `aplicarStatusProblema` | `de`, `para` |
+| `RESOLVIDO` | `aplicarStatusProblema` quando o destino é `resolvido` | `de` |
+
+`dados` nunca carrega e-mail de órgão nem qualquer dado que não vá para a tela.
+
+### 14.2 Consistência e backfill
+
+- Toda emissão roda dentro do `emTransacao` da operação que a originou: se a operação
+  persistiu, o evento persistiu.
+- A migration `20260903_008` faz o **backfill** dos eventos deriváveis do que já
+  existia (`problemas`, `imagens` de `tipo_entidade='problema'`,
+  `problema_comentarios`, `mobilizacoes`), para que problemas antigos não fiquem sem
+  timeline. Eventos antigos de evidência ficam sem ator, porque `imagens` não guarda
+  quem enviou.
+
+### 14.3 Endpoint
+- `GET /problemas/:id/eventos` (público) — `pagina` e `limite` (default 20, máximo 50),
+  ordenado no backend por `criado_em DESC, id DESC`. Resposta:
+  `{ id, problema_id, tipo, dados, criado_em, autor: { id, nome } | null }`.
+
+### 14.4 Lacuna conhecida
+`POST/DELETE /problemas/:id/apoios` não emitem evento: `problema_apoios` guarda
+`criado_em`, mas apoiar e desapoiar são idempotentes e a decisão de registrar
+"fulano apoiou" no histórico ainda não foi tomada. Portanto o apoio continua fora da
+timeline.
+
+## 15. Módulo imagens (upload de evidência)
+
+`common/imagens/` continua registrando qualquer imagem por URL
+(`POST /imagens`, usado pelo resultado de mobilização), e ganhou o upload real.
+
+- `POST /imagens/upload/problema/:problemaId` (auth, `multipart/form-data`, campo
+  `file`). É o mesmo caminho que o mobile já chamava desde o M6 e que não existia.
+- `@fastify/multipart` é registrado dentro de `routes/imagens/`, com
+  `limits: { fileSize: 5 MB, files: 1 }`.
+- `validarArquivoImagem` recusa: MIME fora de `image/jpeg|image/png|image/webp` (415),
+  arquivo vazio (400), acima de 5 MB (413) e arquivo cuja assinatura não bate com o
+  MIME declarado (415) — um PDF renomeado para `.jpg` não passa.
+- Autorização: só o autor do problema ou quem tem `problemas:moderate`; qualquer outro
+  recebe 403 **antes** de o arquivo ir para o storage.
+- Fluxo: valida → checa problema e permissão → `enviarObjeto` no MinIO com chave
+  `problema/<id>/<uuid>.<ext>` → transação com `insertImagem` + `EVIDENCIA_ADICIONADA`.
+  Se a transação falha, o objeto é removido do MinIO.
+- A primeira imagem do problema entra como `principal`; a `ordem` segue a contagem.
+
+## 16. Módulo encaminhamentos (M9)
+
+Encaminhamento institucional do problema, em `common/encaminhamentos/`, com a geração
+do texto em `features/peticoes/peticoes.ts`.
+
+- `orgaos`: `nome`, `email`, `esfera` (`municipal|estadual|federal`), `tipo`, `ativo`.
+  O seed é **dado de exemplo**: nomes prefixados com `[EXEMPLO]` e e-mails em
+  `exemplo.invalid`.
+- `problema_encaminhamentos`: `problema_id`, `orgao_id`, `usuario_id`, `referencia`,
+  `assunto`, `mensagem` (a petição gerada), `status`
+  (`pendente|enviado|respondido|falhou`), `enviado_em`, `protocolo`, `resposta`,
+  `respondido_em`. Índice `(problema_id, criado_em DESC)`.
+- `gerarPeticao` é pura: monta a referência `MUTIRA-Pnnnnnn`, o assunto e um corpo
+  com título, local, data, apoios, descrição, complemento de quem encaminhou e o link
+  público. Trocar o Mailpit por SMTP real é só configuração.
+- Fluxo de `criarEncaminhamento`: valida autorização → confere o órgão ativo → recusa
+  segundo encaminhamento aberto para o mesmo órgão → transação (grava o
+  encaminhamento, emite `ENCAMINHADO` e leva o problema para `encaminhado` emitindo
+  `STATUS_ALTERADO`) → envia o e-mail → marca `enviado` ou `falhou`. A falha de envio
+  não desfaz o registro: fica visível como `falhou` na UI.
+- `registrarResposta` grava resposta e protocolo, muda o status para `respondido` e
+  emite `RESPOSTA_RECEBIDA`.
+- A listagem não expõe o e-mail do órgão e devolve `pode_registrar_resposta`
+  calculado no servidor.
+
+### 16.1 Endpoints
+- `GET /orgaos` (auth) — órgãos ativos (`id`, `nome`, `esfera`, `tipo`).
+- `GET /problemas/:id/encaminhamentos` (auth) — encaminhamentos do problema.
+- `POST /problemas/:id/encaminhamentos` (auth, 3/min) — body `{ orgaoId, mensagem? }`.
+- `POST /problemas/:id/encaminhamentos/:encaminhamentoId/resposta` (auth) — body
+  `{ resposta, protocolo? }`.
+
+### 16.2 Autorização
+Não há sistema de papéis novo: tudo usa `common/abilities.ts`.
+
+| Ação | Quem pode |
+|---|---|
+| Encaminhar problema | autor do problema ou `problemas:moderate` |
+| Registrar resposta | quem criou o encaminhamento ou `problemas:moderate` |
+| Adicionar evidência | autor do problema ou `problemas:moderate` |
+| Alterar status | autor do problema ou `problemas:moderate` |
+| Marcar como `removido` | apenas `problemas:moderate` |
+
+### 16.3 Transições de status do problema
+
+```text
+ativo       → em_analise | encaminhado | resolvido | removido
+em_analise  → encaminhado | resolvido | removido
+encaminhado → em_analise | resolvido | removido
+resolvido   → removido
+removido    → (nenhuma)
+```
+
+`GET /problemas/:id` com token devolve `transicoes_permitidas` já filtrado pela
+autorização de quem pediu, de modo que o app só ofereça o que a API aceita.

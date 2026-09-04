@@ -12,6 +12,11 @@ vi.mock('@config/database.js', () => ({
   dbPool: { query: vi.fn() },
 }));
 
+vi.mock('@shared/transacao.js', async () => {
+  const { dbPool: pool } = await import('@config/database.js');
+  return { emTransacao: (fn: (executor: unknown) => unknown) => fn(pool) };
+});
+
 const mockQuery = dbPool.query as unknown as ReturnType<typeof vi.fn>;
 
 describe('mobilizacoes handlers', () => {
@@ -20,7 +25,8 @@ describe('mobilizacoes handlers', () => {
   it('cria mobilização vinculada a um problema existente', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // problemaExiste
-      .mockResolvedValueOnce({ rows: [{ id: 1, problema_id: 1, titulo: 'Mutirão de limpeza' }] }); // insert
+      .mockResolvedValueOnce({ rows: [{ id: 1, problema_id: 1, titulo: 'Mutirão de limpeza' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 50 }] });
 
     const mobilizacao = await criarMobilizacao({
       usuarioId: 1,
@@ -31,6 +37,7 @@ describe('mobilizacoes handlers', () => {
 
     expect(mobilizacao.id).toBe(1);
     expect(mockQuery.mock.calls[1][0]).toContain('INSERT INTO mobilizacoes');
+    expect(mockQuery.mock.calls[2][1]?.[1]).toBe('MOBILIZACAO_CRIADA');
   });
 
   it('rejeita criação para problema inexistente', async () => {
@@ -62,7 +69,7 @@ describe('mobilizacoes handlers', () => {
   it('inclui contador de participantes ao obter mobilização', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ id: 1, status: 'agendada' }] }) // getMobilizacaoById
-      .mockResolvedValueOnce({ rows: [{ total: 4 }] }); // contarParticipantes
+      .mockResolvedValueOnce({ rows: [{ total: 4 }] });
 
     const mobilizacao = await obterMobilizacao(1);
 
@@ -71,28 +78,46 @@ describe('mobilizacoes handlers', () => {
 
   it('permite transição válida de status (agendada -> em_andamento)', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'agendada' }] }) // exigirMobilizacao
+      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'agendada' }] })
       .mockResolvedValueOnce({ rows: [{ id: 1, status: 'em_andamento' }] }) // updateStatus
-      .mockResolvedValueOnce({ rows: [{ total: 0 }] }); // contarParticipantes
+      .mockResolvedValueOnce({ rows: [{ total: 0 }] });
 
-    const mobilizacao = await atualizarStatusMobilizacao(1, 'em_andamento');
+    const mobilizacao = await atualizarStatusMobilizacao(1, 'em_andamento', 9);
 
     expect(mobilizacao.status).toBe('em_andamento');
+  });
+
+  it('registra MOBILIZACAO_REALIZADA ao concluir a mobilização', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'em_andamento' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 1, problema_id: 4, titulo: 'Mutirão', status: 'realizada' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 51 }] })
+      .mockResolvedValueOnce({ rows: [{ total: 3 }] });
+
+    await atualizarStatusMobilizacao(1, 'realizada', 9);
+
+    expect(mockQuery.mock.calls[2][0]).toContain('INSERT INTO problema_eventos');
+    expect(mockQuery.mock.calls[2][1]).toEqual([
+      4,
+      'MOBILIZACAO_REALIZADA',
+      9,
+      JSON.stringify({ mobilizacao_id: 1, titulo: 'Mutirão' }),
+    ]);
   });
 
   it('rejeita transição inválida de status (realizada -> agendada)', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [{ id: 1, status: 'realizada' }] });
 
-    await expect(atualizarStatusMobilizacao(1, 'agendada')).rejects.toThrow(
+    await expect(atualizarStatusMobilizacao(1, 'agendada', 9)).rejects.toThrow(
       'Não é possível mudar de "realizada" para "agendada".',
     );
   });
 
   it('participação idempotente retorna contador', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // exigirMobilizacao
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
       .mockResolvedValueOnce({ rows: [{ mobilizacao_id: 1 }] }) // participar (inseriu)
-      .mockResolvedValueOnce({ rows: [{ total: 2 }] }); // contarParticipantes
+      .mockResolvedValueOnce({ rows: [{ total: 2 }] });
 
     const resultado = await participarDaMobilizacao(1, 10);
 

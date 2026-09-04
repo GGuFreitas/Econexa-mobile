@@ -15,3 +15,12 @@ export interface ImagemInput {
   principal?: boolean;
   ordem?: number;
 }
+
+export interface EvidenciaProblemaInput {
+  problemaId: number;
+  usuarioId: number;
+  role: string;
+  nomeArquivo: string;
+  mimetype: string;
+  conteudo: Buffer;
+}

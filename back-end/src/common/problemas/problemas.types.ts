@@ -36,6 +36,18 @@ export interface CriarProblemaInput {
   escopo?: ProblemaEscopo;
 }
 
+export interface ProblemaDetalhe extends Problema {
+  pode_encaminhar: boolean;
+  transicoes_permitidas: ProblemaStatus[];
+}
+
+export interface AlterarStatusProblemaInput {
+  problemaId: number;
+  status: ProblemaStatus;
+  usuarioId: number;
+  role: string;
+}
+
 export interface ListarProblemasQuery {
   lat?: number;
   lng?: number;

@@ -1,5 +1,7 @@
 import { AppError } from '@shared/errors.js';
+import { emTransacao, type Executor } from '@shared/transacao.js';
 import { saveImagem } from '@common/imagens/imagens.handler.js';
+import { registrarEvento } from '@common/problemaEventos/problemaEventos.handler.js';
 import * as sql from './mobilizacoes.sql.js';
 import type {
   AtualizarMobilizacaoInput,
@@ -35,7 +37,37 @@ export async function criarMobilizacao(input: CriarMobilizacaoInput): Promise<Mo
     throw new AppError('Problema não encontrado.', 404);
   }
 
-  return sql.insertMobilizacao(input);
+  return emTransacao(async (executor) => {
+    const mobilizacao = await sql.insertMobilizacao(input, executor);
+
+    await registrarEvento(
+      {
+        problemaId: input.problemaId,
+        tipo: 'MOBILIZACAO_CRIADA',
+        usuarioId: input.usuarioId,
+        dados: { mobilizacao_id: mobilizacao.id, titulo: mobilizacao.titulo },
+      },
+      executor,
+    );
+
+    return mobilizacao;
+  });
+}
+
+async function registrarMobilizacaoRealizada(
+  mobilizacao: Mobilizacao,
+  usuarioId: number,
+  executor: Executor,
+): Promise<void> {
+  await registrarEvento(
+    {
+      problemaId: mobilizacao.problema_id,
+      tipo: 'MOBILIZACAO_REALIZADA',
+      usuarioId,
+      dados: { mobilizacao_id: mobilizacao.id, titulo: mobilizacao.titulo },
+    },
+    executor,
+  );
 }
 
 export async function listarMobilizacoes(query: ListarMobilizacoesQuery): Promise<Mobilizacao[]> {
@@ -70,22 +102,39 @@ export async function atualizarMobilizacao(
 export async function atualizarStatusMobilizacao(
   id: number,
   status: MobilizacaoStatus,
+  usuarioId: number,
 ): Promise<Mobilizacao> {
   const atual = await exigirMobilizacao(id);
   const permitido = TRANSICOES_PERMITIDAS[atual.status as MobilizacaoStatus]?.includes(status);
   if (!permitido) {
     throw new AppError(`Não é possível mudar de "${atual.status}" para "${status}".`, 400);
   }
-  const mobilizacao = await sql.updateStatus(id, status);
+
+  const mobilizacao = await emTransacao(async (executor) => {
+    const atualizada = await sql.updateStatus(id, status, executor);
+    if (status === 'realizada') {
+      await registrarMobilizacaoRealizada(atualizada, usuarioId, executor);
+    }
+    return atualizada;
+  });
+
   return comContadores(mobilizacao);
 }
 
 export async function registrarResultadoMobilizacao(
   id: number,
   input: ResultadoMobilizacaoInput,
+  usuarioId: number,
 ): Promise<Mobilizacao> {
-  await exigirMobilizacao(id);
-  const mobilizacao = await sql.registrarResultado(id, input);
+  const atual = await exigirMobilizacao(id);
+
+  const mobilizacao = await emTransacao(async (executor) => {
+    const atualizada = await sql.registrarResultado(id, input, executor);
+    if (atual.status !== 'realizada') {
+      await registrarMobilizacaoRealizada(atualizada, usuarioId, executor);
+    }
+    return atualizada;
+  });
 
   if (input.imagens?.length) {
     for (const [index, url] of input.imagens.entries()) {

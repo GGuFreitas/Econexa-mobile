@@ -14,6 +14,7 @@ export function useAdicionarResultado() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['mobilizacoes', { problemaId: data.problema_id }] });
       qc.invalidateQueries({ queryKey: ['mobilizacao', data.id] });
+      qc.invalidateQueries({ queryKey: ['eventos', data.problema_id] });
     },
   });
 }

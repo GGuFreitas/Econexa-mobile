@@ -1,55 +1,60 @@
 import { useState } from 'react';
+import { Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import { Header, ScreenWrapper, LoadingSpinner, ErrorState } from '@shared/ui';
 import { useLocalizacao } from '@shared/hooks/useLocalizacao';
 import { useCriarProblema } from '../hooks/useCriarProblema';
 import { ProblemForm } from '../components/ProblemForm';
-import { Alert } from 'react-native';
-import type { CriarProblemaPayload } from '../types';
+import { enviarEvidenciaProblema } from '../api/imagens';
+import type { CriarProblemaPayload, UploadFileInput } from '../types';
 
 export function CriarProblemaScreen() {
   const navigation = useNavigation();
+  const queryClient = useQueryClient();
   const { coordenada, carregando, erro } = useLocalizacao();
-  const { mutate, isPending } = useCriarProblema();
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const { mutateAsync, isPending } = useCriarProblema();
+  const [progressoUpload, setProgressoUpload] = useState<number | null>(null);
 
   if (erro) return <ErrorState message={erro} />;
-  if (!coordenada) return <LoadingSpinner />;
+  if (carregando || !coordenada) return <LoadingSpinner />;
 
-  const handleSubmit = async (payload: CriarProblemaPayload) => {
-    // Create problem first (without images for now)
-    const { imagens, ...payloadWithoutImages } = payload;
+  const handleSubmit = async (
+    payload: CriarProblemaPayload,
+    evidencia: UploadFileInput | null,
+  ) => {
+    try {
+      const problema = await mutateAsync(payload);
 
-    mutate(payloadWithoutImages, {
-      onSuccess: async (createdProblema) => {
-        // If there are images to upload, upload them to the created problem
-        if (imagens && imagens.length > 0) {
-          try {
-            for (const url of imagens) {
-              // Note: The current upload expects a file, not a URL.
-              // This is a limitation - we'd need to upload the actual file.
-              // For now, we'll skip image association until backend supports it properly.
-              console.log('Imagem a associar:', url, 'ao problema', createdProblema.id);
-            }
-          } catch (e) {
-            console.error('Erro ao associar imagens:', e);
-            Alert.alert('Aviso', 'Problema criado, mas falha ao associar imagens.');
-          }
+      if (evidencia) {
+        setProgressoUpload(0);
+        try {
+          await enviarEvidenciaProblema(problema.id, evidencia, setProgressoUpload);
+          queryClient.invalidateQueries({ queryKey: ['imagens', 'problema', problema.id] });
+          queryClient.invalidateQueries({ queryKey: ['eventos', problema.id] });
+        } catch (falha) {
+          Alert.alert(
+            'Problema publicado sem a foto',
+            (falha as Error).message ?? 'Não foi possível enviar a imagem.',
+          );
+        } finally {
+          setProgressoUpload(null);
         }
-        navigation.goBack();
-      },
-    });
-  };
+      }
 
-  if (erro) return <ErrorState message={erro} />;
-  if (!coordenada) return <LoadingSpinner />;
+      navigation.goBack();
+    } catch (falha) {
+      Alert.alert('Não foi possível publicar', (falha as Error).message);
+    }
+  };
 
   return (
     <ScreenWrapper>
       <Header title="Relatar problema" onBack={() => navigation.goBack()} />
       <ProblemForm
         coordenada={coordenada}
-        submitting={isPending}
+        submitting={isPending || progressoUpload !== null}
+        progressoUpload={progressoUpload}
         onSubmit={handleSubmit}
       />
     </ScreenWrapper>
