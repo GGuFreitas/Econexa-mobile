@@ -132,24 +132,39 @@ describe('migrações do M9.5 sobre dados sujos', () => {
   });
 
   it('troca os índices GIST de geometria pelos de geografia', async () => {
-    const indices = await knex('pg_indexes')
-      .whereIn('tablename', ['problemas', 'eventos'])
-      .pluck('indexname');
+    const indices = await knex('pg_indexes').where({ tablename: 'problemas' }).pluck('indexname');
 
     expect(indices).toContain('idx_problemas_geom_geog');
-    expect(indices).toContain('idx_eventos_geom_geog');
     expect(indices).not.toContain('idx_problemas_geom');
-    expect(indices).not.toContain('idx_eventos_geom');
+  });
+
+  it('derruba as tabelas do domínio eventos e o índice morto de mobilizações', async () => {
+    const tabelas = await knex('information_schema.tables')
+      .where({ table_schema: 'public' })
+      .whereIn('table_name', ['eventos', 'evento_problema', 'evento_participantes'])
+      .pluck('table_name');
+    expect(tabelas).toHaveLength(0);
+
+    const indices = await knex('pg_indexes')
+      .where({ tablename: 'mobilizacoes' })
+      .pluck('indexname');
+    expect(indices).not.toContain('idx_mobilizacoes_geom');
   });
 
   it('o ciclo rollback e migrate volta ao mesmo estado', async () => {
     await knex.migrate.rollback();
 
     const semGeografia = await knex('pg_indexes')
-      .whereIn('tablename', ['problemas', 'eventos'])
+      .where({ tablename: 'problemas' })
       .pluck('indexname');
     expect(semGeografia).toContain('idx_problemas_geom');
     expect(semGeografia).not.toContain('idx_problemas_geom_geog');
+
+    const eventosDeVolta = await knex('information_schema.tables')
+      .where({ table_schema: 'public' })
+      .whereIn('table_name', ['eventos', 'evento_problema', 'evento_participantes'])
+      .pluck('table_name');
+    expect(eventosDeVolta).toHaveLength(3);
 
     const colunas = await knex('information_schema.columns')
       .where({ table_name: 'problema_encaminhamentos', column_name: 'falha_motivo' })
@@ -159,9 +174,15 @@ describe('migrações do M9.5 sobre dados sujos', () => {
     await knex.migrate.latest();
 
     const comGeografia = await knex('pg_indexes')
-      .whereIn('tablename', ['problemas', 'eventos'])
+      .where({ tablename: 'problemas' })
       .pluck('indexname');
     expect(comGeografia).toContain('idx_problemas_geom_geog');
+
+    const eventosFora = await knex('information_schema.tables')
+      .where({ table_schema: 'public' })
+      .whereIn('table_name', ['eventos', 'evento_problema', 'evento_participantes'])
+      .pluck('table_name');
+    expect(eventosFora).toHaveLength(0);
 
     const denuncias = await knex('problema_denuncias').select('motivo');
     expect(denuncias).toHaveLength(1);

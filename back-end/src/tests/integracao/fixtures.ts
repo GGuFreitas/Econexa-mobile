@@ -17,8 +17,7 @@ export async function limparBanco(): Promise<void> {
   await dbPool.query(`
     TRUNCATE problema_eventos, problema_encaminhamentos, problema_denuncias,
              problema_apoios, problema_comentarios, mobilizacao_participantes,
-             mobilizacoes, evento_participantes, evento_problema, eventos,
-             imagens, problemas, users
+             mobilizacoes, imagens, problemas, users
     RESTART IDENTITY CASCADE
   `);
 }
@@ -51,21 +50,6 @@ export async function criarProblemaNoBanco(fixture: ProblemaFixture): Promise<nu
       fixture.lng ?? SAO_PAULO.lng,
       fixture.lat ?? SAO_PAULO.lat,
     ],
-  );
-  return Number(result.rows[0].id);
-}
-
-export async function criarEventoNoBanco(
-  usuarioId: number,
-  lat: number,
-  lng: number,
-  titulo = 'Mutirão de teste',
-): Promise<number> {
-  const result = await dbPool.query(
-    `INSERT INTO eventos (usuario_id, causa_id, titulo, tipo, geom, data_inicio, status)
-     VALUES ($1, 1, $2, 'mutirao', ST_SetSRID(ST_MakePoint($3, $4), 4326), now(), 'planejado')
-     RETURNING id`,
-    [usuarioId, titulo, lng, lat],
   );
   return Number(result.rows[0].id);
 }
