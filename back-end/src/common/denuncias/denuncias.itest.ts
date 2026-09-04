@@ -61,4 +61,16 @@ describe('denuncias: uma por usuário por problema', () => {
     expect(await contarDenuncias(problemaId)).toBe(2);
     expect(await listarDenuncias(problemaId, 'admin')).toHaveLength(2);
   });
+
+  it('nem o autor do problema vê quem o denunciou', async () => {
+    const denunciante = await criarUsuario('Sara');
+    await criarDenuncia({ problemaId, usuarioId: denunciante, motivo: 'spam' });
+
+    await expect(listarDenuncias(problemaId, 'citizen')).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await expect(listarDenuncias(problemaId, 'specialist')).rejects.toMatchObject({
+      statusCode: 403,
+    });
+  });
 });
