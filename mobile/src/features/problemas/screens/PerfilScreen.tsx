@@ -14,6 +14,8 @@ const ROLE_LABEL: Record<string, string> = {
   admin: 'Moderação',
 };
 
+const RAIO_PERFIL_METROS = 8000;
+
 export function PerfilScreen() {
   const theme = useAppTheme();
   const user = useSelector((state: { auth: { user: User | null } }) => state.auth.user);
@@ -21,7 +23,7 @@ export function PerfilScreen() {
   const { data: estatisticas } = useEstatisticas({
     lat: coordenada?.latitude,
     lng: coordenada?.longitude,
-    raio: 8000,
+    raio: RAIO_PERFIL_METROS,
     status: 'ativo',
   });
 
@@ -39,15 +41,23 @@ export function PerfilScreen() {
       </Card>
 
       <Card style={styles.card}>
-        <Text style={[styles.section, { color: theme.colors.onSurfaceVariant }]}>Seu impacto</Text>
-        <View style={styles.metricRow}>
-          <Text style={[styles.metric, { color: theme.colors.onSurface }]}>
-            {estatisticas?.total ?? 0}
-          </Text>
+        <Text style={[styles.section, { color: theme.colors.onSurfaceVariant }]}>
+          Na sua região
+        </Text>
+        {estatisticas ? (
+          <View style={styles.metricRow}>
+            <Text style={[styles.metric, { color: theme.colors.onSurface }]}>
+              {estatisticas.total}
+            </Text>
+            <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
+              problemas ativos num raio de {RAIO_PERFIL_METROS / 1000} km
+            </Text>
+          </View>
+        ) : (
           <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
-            problemas ativos perto de você
+            Carregando os números da sua região.
           </Text>
-        </View>
+        )}
       </Card>
     </ScreenWrapper>
   );

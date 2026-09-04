@@ -6,7 +6,10 @@ import type { RootState } from '@store/store';
 const baseURL =
   (process.env.EXPO_PUBLIC_API_URL as string | undefined) ?? 'http://localhost:5000/api';
 
-export const api: AxiosInstance = axios.create({ baseURL });
+export const api: AxiosInstance = axios.create({
+  baseURL,
+  paramsSerializer: { indexes: null },
+});
 
 api.interceptors.request.use((config) => {
   const token = (store.getState() as RootState).auth.token;

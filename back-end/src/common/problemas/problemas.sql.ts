@@ -2,6 +2,7 @@ import { dbPool } from '@config/database.js';
 import type { Executor } from '@shared/transacao.js';
 import type {
   CriarProblemaInput,
+  FiltroProblemas,
   ListarProblemasQuery,
   Problema,
   ProblemaStatus,
@@ -37,10 +38,15 @@ export async function insertProblema(
   return result.rows[0];
 }
 
-export async function listarProblemas(query: ListarProblemasQuery): Promise<Problema[]> {
+interface FiltroConstruido {
+  where: string;
+  params: unknown[];
+  distancia: string;
+}
+
+function construirFiltro(query: FiltroProblemas): FiltroConstruido {
   const conditions: string[] = [];
   const params: unknown[] = [];
-  const hasPoint = query.lat != null && query.lng != null;
 
   if (query.status) {
     params.push(query.status);
@@ -65,28 +71,34 @@ export async function listarProblemas(query: ListarProblemasQuery): Promise<Prob
     conditions.push(`p.tags && $${params.length}`);
   }
 
-  let geoPointExpr = '';
-  if (hasPoint) {
+  let distancia = '';
+  if (query.lat != null && query.lng != null) {
     params.push(query.lng, query.lat, query.raio ?? RAIO_LISTAGEM_METROS);
     const ponto = pontoGeografia(params.length - 2, params.length - 1);
-    const raioIdx = params.length;
-    conditions.push(`ST_DWithin(p.geom::geography, ${ponto}, $${raioIdx})`);
-    geoPointExpr = `, ST_Distance(p.geom::geography, ${ponto}) AS distancia_m`;
+    conditions.push(`ST_DWithin(p.geom::geography, ${ponto}, $${params.length})`);
+    distancia = `ST_Distance(p.geom::geography, ${ponto})`;
   }
 
-  const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+  return { where: `WHERE ${conditions.join(' AND ')}`, params, distancia };
+}
+
+export async function listarProblemas(query: ListarProblemasQuery): Promise<Problema[]> {
+  const { where, params, distancia } = construirFiltro(query);
+
   const limit = query.limite ?? 20;
   const offset = ((query.pagina ?? 1) - 1) * limit;
   params.push(limit, offset);
   const limitIdx = params.length - 1;
   const offsetIdx = params.length;
 
-  const orderBy = hasPoint
+  const orderBy = distancia
     ? 'distancia_m ASC, p.cont_apoios_ponderados DESC, p.criado_em DESC'
     : 'p.cont_apoios_ponderados DESC, p.criado_em DESC';
 
   const result = await dbPool.query(
-    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat${geoPointExpr}
+    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat${
+      distancia ? `, ${distancia} AS distancia_m` : ''
+    }
      FROM problemas p
      ${where}
      ORDER BY ${orderBy}
@@ -142,78 +154,55 @@ export async function atualizarStatus(
   return result.rows[0];
 }
 
-export interface FiltroAgregacao {
-  status?: string;
-  tipo?: string;
-  escopo?: string;
-  causaId?: number;
-}
-
-function buildWhere(query: FiltroAgregacao): { clause: string; params: unknown[] } {
-  const conditions: string[] = [];
-  const params: unknown[] = [];
-  if (query.status) {
-    params.push(query.status);
-    conditions.push(`status = $${params.length}`);
-  } else {
-    conditions.push(`status <> 'removido'`);
-  }
-  if (query.tipo) {
-    params.push(query.tipo);
-    conditions.push(`tipo = $${params.length}`);
-  }
-  if (query.escopo) {
-    params.push(query.escopo);
-    conditions.push(`escopo = $${params.length}`);
-  }
-  if (query.causaId) {
-    params.push(query.causaId);
-    conditions.push(`causa_id = $${params.length}`);
-  }
-  const clause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
-  return { clause, params };
-}
-
 export async function contarPorCausa(
-  query: FiltroAgregacao,
+  query: FiltroProblemas,
 ): Promise<{ causa_id: number; total: number }[]> {
-  const { clause, params } = buildWhere(query);
+  const { where, params } = construirFiltro(query);
   const result = await dbPool.query(
-    `SELECT causa_id, COUNT(*)::int AS total FROM problemas ${clause} GROUP BY causa_id ORDER BY total DESC`,
+    `SELECT p.causa_id, COUNT(*)::int AS total
+     FROM problemas p
+     ${where}
+     GROUP BY p.causa_id
+     ORDER BY total DESC`,
     params,
   );
   return result.rows;
 }
 
 export async function contarPorTipo(
-  query: FiltroAgregacao,
+  query: FiltroProblemas,
 ): Promise<{ tipo: string; total: number }[]> {
-  const { clause, params } = buildWhere(query);
+  const { where, params } = construirFiltro(query);
   const result = await dbPool.query(
-    `SELECT tipo, COUNT(*)::int AS total FROM problemas ${clause} GROUP BY tipo ORDER BY total DESC`,
+    `SELECT p.tipo, COUNT(*)::int AS total
+     FROM problemas p
+     ${where}
+     GROUP BY p.tipo
+     ORDER BY total DESC`,
     params,
   );
   return result.rows;
 }
 
-export async function totalProblemas(query: FiltroAgregacao): Promise<number> {
-  const { clause, params } = buildWhere(query);
+export async function totalProblemas(query: FiltroProblemas): Promise<number> {
+  const { where, params } = construirFiltro(query);
   const result = await dbPool.query(
-    `SELECT COUNT(*)::int AS total FROM problemas ${clause}`,
+    `SELECT COUNT(*)::int AS total FROM problemas p ${where}`,
     params,
   );
   return Number(result.rows[0]?.total ?? 0);
 }
 
-export async function tendenciasProblemas(
-  query: FiltroAgregacao & { limite?: number },
-): Promise<Problema[]> {
-  const { clause, params } = buildWhere(query);
+export async function tendenciasProblemas(query: ListarProblemasQuery): Promise<Problema[]> {
+  const { where, params, distancia } = construirFiltro(query);
   params.push(query.limite ?? 10);
   const limitIdx = params.length;
   const result = await dbPool.query(
-    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat
-     FROM problemas p ${clause}
+    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat${
+      distancia ? `, ${distancia} AS distancia_m` : ''
+    }
+     FROM problemas p
+     ${where}
      ORDER BY p.cont_apoios_ponderados DESC, p.criado_em DESC
      LIMIT $${limitIdx}`,
     params,

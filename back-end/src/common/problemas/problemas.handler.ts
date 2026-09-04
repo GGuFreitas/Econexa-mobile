@@ -9,6 +9,8 @@ import * as sql from './problemas.sql.js';
 import type {
   AlterarStatusProblemaInput,
   CriarProblemaInput,
+  EstatisticasProblemas,
+  FiltroProblemas,
   ListarProblemasQuery,
   Problema,
   ProblemaDetalhe,
@@ -229,11 +231,9 @@ export async function alterarStatusProblema(
   return montarDetalhe(atualizado, input.usuarioId, input.role);
 }
 
-export async function estatisticasProblemas(query: sql.FiltroAgregacao): Promise<{
-  total: number;
-  porCausa: { causa_id: number; total: number }[];
-  porTipo: { tipo: string; total: number }[];
-}> {
+export async function estatisticasProblemas(
+  query: FiltroProblemas,
+): Promise<EstatisticasProblemas> {
   const [porCausa, porTipo, total] = await Promise.all([
     sql.contarPorCausa(query),
     sql.contarPorTipo(query),
@@ -243,7 +243,7 @@ export async function estatisticasProblemas(query: sql.FiltroAgregacao): Promise
 }
 
 export async function tendenciasProblemasHandler(
-  query: sql.FiltroAgregacao & { limite?: number },
+  query: ListarProblemasQuery,
 ): Promise<Problema[]> {
   return sql.tendenciasProblemas(query);
 }
