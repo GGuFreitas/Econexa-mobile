@@ -22,10 +22,15 @@ import { useProblema } from '../hooks/useProblema';
 import { useApoio } from '../hooks/useApoio';
 import { useDenuncia } from '../hooks/useDenuncia';
 import { getCausa } from '../map/markerConfig';
+import { AtividadeProblema } from '../components/AtividadeProblema';
 import type { DenunciaMotivo } from '../types';
 import { MobilizacoesListScreen } from '@features/mobilizations/screens/MobilizacoesListScreen';
 import type { NavigationProp } from '@react-navigation/native';
 import type { RootStackParamList } from '@navigation/AppNavigator';
+
+const TAB_DETALHE = 'Detalhe';
+const TAB_MOBILIZACOES = 'Mobilizações';
+const TAB_ATIVIDADE = 'Atividade';
 
 const STATUS_LABEL: Record<string, string> = {
   ativo: 'Ativo',
@@ -46,7 +51,7 @@ export function DetalheProblemaScreen() {
   const denuncia = useDenuncia(id);
   const [denunciaAberta, setDenunciaAberta] = useState(false);
   const [motivo, setMotivo] = useState<string>('spam');
-  const [activeTab, setActiveTab] = useState('detalhe');
+  const [activeTab, setActiveTab] = useState(TAB_DETALHE);
 
   if (isLoading) return <LoadingSpinner />;
   if (isError || !problema) return <ErrorState message="Problema não encontrado." />;
@@ -57,11 +62,12 @@ export function DetalheProblemaScreen() {
     <ScreenWrapper>
       <Header title="Detalhe" onBack={() => navigation.goBack()} />
       <Tabs value={activeTab} onChange={setActiveTab} style={styles.tabs}>
-        <Tab label="Detalhe" icon="information-outline" />
-        <Tab label="Mobilizações" icon="account-group" badge={0} />
+        <Tab label={TAB_DETALHE} icon="information-outline" />
+        <Tab label={TAB_MOBILIZACOES} icon="account-group" badge={0} />
+        <Tab label={TAB_ATIVIDADE} icon="timeline-clock-outline" />
       </Tabs>
 
-      {activeTab === 'detalhe' && (
+      {activeTab === TAB_DETALHE && (
         <ScrollView contentContainerStyle={styles.container}>
           <View style={[styles.iconWrap, { backgroundColor: causa.cor }]}>
             <MaterialCommunityIcons
@@ -114,12 +120,14 @@ export function DetalheProblemaScreen() {
         </ScrollView>
       )}
 
-      {activeTab === 'mobilizacoes' && (
+      {activeTab === TAB_MOBILIZACOES && (
         <MobilizacoesListScreen
           problemaId={problema.id}
           onPress={(mobilizacaoId) => navigation.navigate('MobilizacaoDetail', { id: mobilizacaoId })}
         />
       )}
+
+      {activeTab === TAB_ATIVIDADE && <AtividadeProblema problemaId={problema.id} />}
 
       <Modal visible={denunciaAberta} onDismiss={() => setDenunciaAberta(false)}>
         <View style={styles.modal}>

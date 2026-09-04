@@ -13,7 +13,10 @@ App mobile do Mutira. Stack validada em ago/2026: **Expo SDK 57 + Node 24 LTS**.
 - Axios (api.ts + interceptor de token)
 - React Hook Form + Zod (formulários/validação)
 - react-native-maps + expo-location (Mapa Vivo)
-- Vitest + @testing-library/react-native (testes unitários)
+- Vitest (jsdom) para utils puros, camada `api/` e hooks (`renderHook` do
+  `@testing-library/react`). **Não há** render de componentes React Native nos testes:
+  o `react-native` do SDK 57 é distribuído com sintaxe Flow e o vitest/esbuild não
+  consegue transformá-lo (`@testing-library/react-native` exigiria o preset de jest).
 
 ## Estrutura
 
@@ -23,17 +26,27 @@ src/
     auth/              # login, registro
     home/              # HomeScreen = Mapa Vivo
     problemas/
-      types.ts         # contrato Problema (espelha backend)
-      api/             # listar, buscar, estatisticas
-      hooks/           # useProblemas, useEstatisticas, useProblema
+      types.ts         # contrato Problema, ImagemProblema, EventoTimeline
+      api/             # listar, buscar, estatisticas, criar, apoios,
+                       # denuncias, imagens, listarImagens
+      hooks/           # useProblemas, useEstatisticas, useProblema, useApoio,
+                       # useDenuncia, useCriarProblema, useImagensProblema, useTimeline
       map/             # ProblemMap, ProblemMarker, ProblemCluster,
                        # MapBottomSheet, MapFilters, MapLegend, PertoDeVoce
-      components/      # ProblemCard (lista)
-      utils/           # clusterUtils (clustering por grade)
+      components/      # ProblemCard, ProblemForm, Timeline, AtividadeProblema
+      utils/           # clusterUtils (clustering por grade), timeline (montarTimeline)
+      screens/         # Feed, Perfil, CriarProblema, DetalheProblema
+    comentarios/
+      types.ts         # contrato Comentario (autor + pode_excluir do servidor)
+      api/             # listar, criar, excluir
+      hooks/           # useComentarios, useCriarComentario, useExcluirComentario
+      components/      # ComentariosList, ComentarioItem, ComentarioForm
+    mobilizations/     # types, api, hooks, components, screens, utils
   shared/
     theme/             # cores, espaçamento, tipografia, theme (light/dark)
-    ui/                # Button, TextInput, Chip, Card, BottomSheet, FAB...
-    hooks/             # useAppTheme, useLocalizacao
+    ui/                # Button, TextInput, Chip, Card, BottomSheet, FAB, Tabs...
+    hooks/             # useAppTheme, useLocalizacao, useAppQueryClient
+    utils/             # dataRelativa (formatarDataRelativa)
   store/               # authSlice, themeSlice (Redux)
   navigation/          # AppNavigator, AuthGuard
   services/            # api.ts (axios)
@@ -52,7 +65,36 @@ Importações usam aliases (`@features`, `@shared`, `@store`, `@navigation`,
 
 Endpoints consumidos: `GET/POST /problemas`, `GET /problemas/:id`,
 `GET /problemas/estatisticas`, `GET /problemas/tendencias`,
-`POST/DELETE /problemas/:id/apoios`, `POST/GET /problemas/:id/denuncias`.
+`POST/DELETE /problemas/:id/apoios`, `POST/GET /problemas/:id/denuncias`,
+`GET/POST /problemas/:id/comentarios`, `DELETE /problemas/:id/comentarios/:comentarioId`,
+`GET /imagens/:tipo_entidade/:entidade_id`,
+`GET/POST /mobilizacoes`, `GET /mobilizacoes/:id`, `PATCH /mobilizacoes/:id`,
+`PATCH /mobilizacoes/:id/status`, `POST /mobilizacoes/:id/resultado`,
+`POST/DELETE /mobilizacoes/:id/participar`.
+
+`Comentario` (em `features/comentarios/types.ts`) traz `autor: { id, nome }` e
+`pode_excluir` calculado **no servidor** a partir do token. O app só reflete o que a
+API permite — esconder o botão de excluir não é mecanismo de segurança; o
+`DELETE` responde `403` para comentário de outro usuário.
+
+## Atividade do problema (timeline)
+
+`DetalheProblemaScreen` tem três abas: `Detalhe`, `Mobilizações` e `Atividade`.
+
+A timeline é montada **no cliente** (`utils/timeline.ts` → `montarTimeline`, pura) a
+partir do que já existe na API, em ordem do mais recente para o mais antigo:
+
+| Evento | Origem |
+|---|---|
+| `problema_criado` | `GET /problemas/:id` (`criado_em`) |
+| `evidencia_adicionada` | `GET /imagens/problema/:id` (`criado_em`) |
+| `comentario_criado` | `GET /problemas/:id/comentarios` (`criado_em`) |
+| `mobilizacao_criada` | `GET /mobilizacoes?problemaId=` (`criado_em`) |
+| `mobilizacao_realizada` | idem, quando `status = 'realizada'` (`atualizado_em`) |
+
+O backend **não tem** tabela nem endpoint de eventos/atividade, e as rotas de apoio
+não expõem quem apoiou nem quando — por isso "fulano apoiou o problema" fica fora da
+timeline. Nenhum sistema genérico de eventos foi criado para preencher essa lacuna.
 
 ## Mapa Vivo
 
