@@ -142,13 +142,6 @@ export async function atualizarStatus(
   return result.rows[0];
 }
 
-export async function incrementarVisualizacoes(id: number): Promise<void> {
-  await dbPool.query(
-    `UPDATE problemas SET cont_visualizacoes = cont_visualizacoes + 1 WHERE id = $1`,
-    [id],
-  );
-}
-
 export interface FiltroAgregacao {
   status?: string;
   tipo?: string;

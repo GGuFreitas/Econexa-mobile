@@ -171,7 +171,6 @@ export async function obterProblema(
   role?: string,
 ): Promise<ProblemaDetalhe> {
   const problema = await exigirProblema(id);
-  await sql.incrementarVisualizacoes(id);
 
   return montarDetalhe(problema, usuarioId, role);
 }

@@ -15,7 +15,6 @@ export interface Problema {
   escopo: ProblemaEscopo;
   cont_apoios: number;
   cont_apoios_ponderados: number;
-  cont_visualizacoes: number;
   criado_em: Date;
   atualizado_em: Date;
   lat: number;

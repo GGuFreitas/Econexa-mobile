@@ -249,7 +249,6 @@ describe('problemas handlers', () => {
   it('pode_encaminhar acompanha as travas que o POST de encaminhamento aplica', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
 
     const comOrgaoLivre = await obterProblema(1, 7, 'citizen');
@@ -257,15 +256,12 @@ describe('problemas handlers', () => {
 
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
     const semOrgaoLivre = await obterProblema(1, 7, 'citizen');
     expect(semOrgaoLivre.pode_encaminhar).toBe(false);
 
-    mockQuery
-      .mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'removido' }] })
-      .mockResolvedValueOnce({ rows: [] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'removido' }] });
 
     const removido = await obterProblema(1, 7, 'citizen');
     expect(removido.pode_encaminhar).toBe(false);
@@ -274,20 +270,18 @@ describe('problemas handlers', () => {
   it('quem apoiou pode adicionar evidência sem poder encaminhar', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
 
     const apoiador = await obterProblema(1, 99, 'citizen');
 
     expect(apoiador.pode_adicionar_evidencia).toBe(true);
     expect(apoiador.pode_encaminhar).toBe(false);
-    expect(mockQuery.mock.calls[2][0]).toContain('FROM problema_apoios');
+    expect(mockQuery.mock.calls[1][0]).toContain('FROM problema_apoios');
   });
 
   it('quem não apoiou nem é autor não adiciona evidência', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
-      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
     const estranho = await obterProblema(1, 99, 'citizen');
