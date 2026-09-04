@@ -113,7 +113,10 @@ export function DetalheProblemaScreen() {
             </Text>
           )}
 
-          <EvidenciasProblema problemaId={problema.id} podeAdicionar={problema.pode_encaminhar} />
+          <EvidenciasProblema
+            problemaId={problema.id}
+            podeAdicionar={problema.pode_adicionar_evidencia}
+          />
 
           <View style={styles.actions}>
             <Button
