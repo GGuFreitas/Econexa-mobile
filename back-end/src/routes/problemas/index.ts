@@ -44,6 +44,7 @@ import {
 import {
   criarEncaminhamento,
   listarEncaminhamentos,
+  reenviarEncaminhamento,
   registrarResposta,
 } from '@common/encaminhamentos/encaminhamentos.handler.js';
 
@@ -77,8 +78,8 @@ export async function problemasRoutes(app: FastifyInstance): Promise<void> {
     },
     async (request, reply) => {
       const body = parse(criarProblemaSchema, request.body);
-      const problema = await criarProblema({ ...body, usuarioId: request.user!.id });
-      return created(reply, problema);
+      const resultado = await criarProblema({ ...body, usuarioId: request.user!.id });
+      return resultado.criado ? created(reply, resultado) : ok(reply, resultado);
     },
   );
 
@@ -238,6 +239,29 @@ export async function problemasRoutes(app: FastifyInstance): Promise<void> {
         role: request.user!.role,
       });
       return created(reply, encaminhamento);
+    },
+  );
+
+  app.post(
+    '/:id/encaminhamentos/:encaminhamentoId/reenviar',
+    {
+      preHandler: [
+        requireAuth,
+        rateLimitGuard(encaminhamentoLimiter, (request) => String(request.user!.id)),
+      ],
+    },
+    async (request, reply) => {
+      const id = parseId((request.params as { id: string }).id);
+      const encaminhamentoId = parseId(
+        (request.params as { encaminhamentoId: string }).encaminhamentoId,
+      );
+      const encaminhamento = await reenviarEncaminhamento({
+        problemaId: id,
+        encaminhamentoId,
+        usuarioId: request.user!.id,
+        role: request.user!.role,
+      });
+      return ok(reply, encaminhamento);
     },
   );
 
