@@ -6,6 +6,8 @@ import type {
   VincularProblemaInput,
 } from './eventos.types.js';
 
+export const RAIO_LISTAGEM_METROS = 5000;
+
 export async function insertEvento(input: CriarEventoInput): Promise<Evento> {
   const result = await dbPool.query(
     `INSERT INTO eventos (usuario_id, causa_id, titulo, descricao, tipo, geom, data_inicio, data_fim)
@@ -46,14 +48,13 @@ export async function listarEventos(query: ListarEventosQuery): Promise<Evento[]
 
   let geoPointExpr = '';
   if (hasPoint) {
-    params.push(query.lng, query.lat, query.raio ?? 5000);
+    params.push(query.lng, query.lat, query.raio ?? RAIO_LISTAGEM_METROS);
     const lngIdx = params.length - 2;
     const latIdx = params.length - 1;
     const raioIdx = params.length;
-    conditions.push(
-      `ST_DWithin(e.geom, ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326), $${raioIdx})`,
-    );
-    geoPointExpr = `, ST_Distance(e.geom, ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)) AS distancia_m`;
+    const ponto = `ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)::geography`;
+    conditions.push(`ST_DWithin(e.geom::geography, ${ponto}, $${raioIdx})`);
+    geoPointExpr = `, ST_Distance(e.geom::geography, ${ponto}) AS distancia_m`;
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';

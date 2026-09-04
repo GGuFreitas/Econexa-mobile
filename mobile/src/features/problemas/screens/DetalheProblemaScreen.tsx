@@ -23,6 +23,11 @@ import { useApoio } from '../hooks/useApoio';
 import { useDenuncia } from '../hooks/useDenuncia';
 import { getCausa } from '../map/markerConfig';
 import { AtividadeProblema } from '../components/AtividadeProblema';
+import { AlterarStatusModal } from '../components/AlterarStatusModal';
+import { EvidenciasProblema } from '../components/EvidenciasProblema';
+import { rotuloStatus } from '../utils/status';
+import { EncaminhamentosList } from '@features/encaminhamentos/components/EncaminhamentosList';
+import { EncaminharProblemaModal } from '@features/encaminhamentos/components/EncaminharProblemaModal';
 import type { DenunciaMotivo } from '../types';
 import { MobilizacoesListScreen } from '@features/mobilizations/screens/MobilizacoesListScreen';
 import type { NavigationProp } from '@react-navigation/native';
@@ -31,14 +36,6 @@ import type { RootStackParamList } from '@navigation/AppNavigator';
 const TAB_DETALHE = 'Detalhe';
 const TAB_MOBILIZACOES = 'Mobilizações';
 const TAB_ATIVIDADE = 'Atividade';
-
-const STATUS_LABEL: Record<string, string> = {
-  ativo: 'Ativo',
-  em_analise: 'Em análise',
-  encaminhado: 'Encaminhado',
-  resolvido: 'Resolvido',
-  removido: 'Removido',
-};
 
 export function DetalheProblemaScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
@@ -50,6 +47,8 @@ export function DetalheProblemaScreen() {
   const { apoiar, desapoiar } = useApoio(id);
   const denuncia = useDenuncia(id);
   const [denunciaAberta, setDenunciaAberta] = useState(false);
+  const [encaminharAberto, setEncaminharAberto] = useState(false);
+  const [statusAberto, setStatusAberto] = useState(false);
   const [motivo, setMotivo] = useState<string>('spam');
   const [activeTab, setActiveTab] = useState(TAB_DETALHE);
 
@@ -57,13 +56,14 @@ export function DetalheProblemaScreen() {
   if (isError || !problema) return <ErrorState message="Problema não encontrado." />;
 
   const causa = getCausa(problema.causa_id);
+  const transicoes = problema.transicoes_permitidas ?? [];
 
   return (
     <ScreenWrapper>
       <Header title="Detalhe" onBack={() => navigation.goBack()} />
       <Tabs value={activeTab} onChange={setActiveTab} style={styles.tabs}>
         <Tab label={TAB_DETALHE} icon="information-outline" />
-        <Tab label={TAB_MOBILIZACOES} icon="account-group" badge={0} />
+        <Tab label={TAB_MOBILIZACOES} icon="account-group" />
         <Tab label={TAB_ATIVIDADE} icon="timeline-clock-outline" />
       </Tabs>
 
@@ -87,7 +87,7 @@ export function DetalheProblemaScreen() {
           <Card style={styles.card}>
             <Text style={[styles.statusLabel, { color: theme.colors.onSurfaceVariant }]}>Status</Text>
             <Text style={[styles.status, { color: causa.cor }]}>
-              {STATUS_LABEL[problema.status] ?? problema.status}
+              {rotuloStatus(problema.status)}
             </Text>
             <View style={styles.apoioRow}>
               <MaterialCommunityIcons name="account-group" size={20} color={theme.colors.primary} />
@@ -95,6 +95,16 @@ export function DetalheProblemaScreen() {
                 {problema.cont_apoios} apoios
               </Text>
             </View>
+            {transicoes.length > 0 && (
+              <Button
+                mode="outlined"
+                icon="swap-horizontal"
+                onPress={() => setStatusAberto(true)}
+                style={styles.acaoStatus}
+              >
+                Alterar status
+              </Button>
+            )}
           </Card>
 
           {problema.descricao && (
@@ -102,6 +112,11 @@ export function DetalheProblemaScreen() {
               {problema.descricao}
             </Text>
           )}
+
+          <EvidenciasProblema
+            problemaId={problema.id}
+            podeAdicionar={problema.pode_adicionar_evidencia}
+          />
 
           <View style={styles.actions}>
             <Button
@@ -117,6 +132,14 @@ export function DetalheProblemaScreen() {
               Denunciar
             </Button>
           </View>
+
+          {problema.pode_encaminhar && (
+            <Button mode="contained" icon="send" onPress={() => setEncaminharAberto(true)}>
+              Encaminhar problema
+            </Button>
+          )}
+
+          <EncaminhamentosList problemaId={problema.id} />
         </ScrollView>
       )}
 
@@ -128,6 +151,19 @@ export function DetalheProblemaScreen() {
       )}
 
       {activeTab === TAB_ATIVIDADE && <AtividadeProblema problemaId={problema.id} />}
+
+      <EncaminharProblemaModal
+        problemaId={problema.id}
+        visivel={encaminharAberto}
+        onFechar={() => setEncaminharAberto(false)}
+      />
+
+      <AlterarStatusModal
+        problemaId={problema.id}
+        visivel={statusAberto}
+        transicoes={transicoes}
+        onFechar={() => setStatusAberto(false)}
+      />
 
       <Modal visible={denunciaAberta} onDismiss={() => setDenunciaAberta(false)}>
         <View style={styles.modal}>
@@ -176,6 +212,7 @@ const styles = StyleSheet.create({
   status: { fontSize: typography.fontSize.lg, fontWeight: '700' },
   apoioRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   apoio: { fontSize: typography.fontSize.base, fontWeight: '600' },
+  acaoStatus: { alignSelf: 'flex-start' },
   desc: { fontSize: typography.fontSize.sm, lineHeight: 22 },
   actions: { flexDirection: 'row', gap: spacing.two },
   modal: { padding: spacing.four, gap: spacing.three },

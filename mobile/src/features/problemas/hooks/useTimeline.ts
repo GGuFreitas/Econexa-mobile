@@ -1,49 +1,36 @@
 import { useMemo } from 'react';
-import { useComentarios } from '@features/comentarios/hooks/useComentarios';
-import { useMobilizacoes } from '@features/mobilizations/hooks/useMobilizacoes';
-import { useProblema } from './useProblema';
-import { useImagensProblema } from './useImagensProblema';
-import { montarTimeline } from '../utils/timeline';
-import type { EventoTimeline } from '../types';
+import { useQuery } from '@tanstack/react-query';
+import { listarEventosProblema } from '../api/listarEventos';
+import { apresentarEventos } from '../utils/eventos';
+import type { EventoApresentado, ProblemaEvento } from '../types';
 
-const LIMITE_MOBILIZACOES = 20;
+const LIMITE_EVENTOS = 50;
 
 interface TimelineResultado {
-  eventos: EventoTimeline[];
+  eventos: EventoApresentado[];
   isLoading: boolean;
   isError: boolean;
+  error: unknown;
   refetch: () => void;
 }
 
-export function useTimeline(problemaId: number): TimelineResultado {
-  const problema = useProblema(problemaId);
-  const imagens = useImagensProblema(problemaId);
-  const comentarios = useComentarios(problemaId);
-  const mobilizacoes = useMobilizacoes({ problemaId, limite: LIMITE_MOBILIZACOES });
+export function useTimeline(problemaId: number | null): TimelineResultado {
+  const query = useQuery<ProblemaEvento[]>({
+    queryKey: ['eventos', problemaId],
+    queryFn: () => listarEventosProblema(problemaId as number, LIMITE_EVENTOS),
+    enabled: problemaId != null,
+    staleTime: 30_000,
+  });
 
-  const eventos = useMemo(
-    () =>
-      montarTimeline({
-        problema: problema.data,
-        imagens: imagens.data,
-        comentarios: comentarios.data,
-        mobilizacoes: mobilizacoes.data?.pages.flat(),
-      }),
-    [problema.data, imagens.data, comentarios.data, mobilizacoes.data],
-  );
-
-  const refetch = () => {
-    problema.refetch();
-    imagens.refetch();
-    comentarios.refetch();
-    mobilizacoes.refetch();
-  };
+  const eventos = useMemo(() => apresentarEventos(query.data), [query.data]);
 
   return {
     eventos,
-    isLoading:
-      problema.isLoading || imagens.isLoading || comentarios.isLoading || mobilizacoes.isLoading,
-    isError: problema.isError || imagens.isError || comentarios.isError || mobilizacoes.isError,
-    refetch,
+    isLoading: query.isLoading,
+    isError: query.isError,
+    error: query.error,
+    refetch: () => {
+      query.refetch();
+    },
   };
 }

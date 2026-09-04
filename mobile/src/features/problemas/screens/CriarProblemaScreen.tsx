@@ -1,55 +1,77 @@
 import { useState } from 'react';
+import { Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import type { NavigationProp } from '@react-navigation/native';
+import { useQueryClient } from '@tanstack/react-query';
 import { Header, ScreenWrapper, LoadingSpinner, ErrorState } from '@shared/ui';
 import { useLocalizacao } from '@shared/hooks/useLocalizacao';
 import { useCriarProblema } from '../hooks/useCriarProblema';
 import { ProblemForm } from '../components/ProblemForm';
-import { Alert } from 'react-native';
-import type { CriarProblemaPayload } from '../types';
+import { enviarEvidenciaProblema } from '../api/imagens';
+import type { CriarProblemaPayload, UploadFileInput } from '../types';
+import type { RootStackParamList } from '@navigation/AppNavigator';
 
 export function CriarProblemaScreen() {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const queryClient = useQueryClient();
   const { coordenada, carregando, erro } = useLocalizacao();
-  const { mutate, isPending } = useCriarProblema();
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const { mutateAsync, isPending } = useCriarProblema();
+  const [progressoUpload, setProgressoUpload] = useState<number | null>(null);
 
   if (erro) return <ErrorState message={erro} />;
-  if (!coordenada) return <LoadingSpinner />;
+  if (carregando || !coordenada) return <LoadingSpinner />;
 
-  const handleSubmit = async (payload: CriarProblemaPayload) => {
-    // Create problem first (without images for now)
-    const { imagens, ...payloadWithoutImages } = payload;
-
-    mutate(payloadWithoutImages, {
-      onSuccess: async (createdProblema) => {
-        // If there are images to upload, upload them to the created problem
-        if (imagens && imagens.length > 0) {
-          try {
-            for (const url of imagens) {
-              // Note: The current upload expects a file, not a URL.
-              // This is a limitation - we'd need to upload the actual file.
-              // For now, we'll skip image association until backend supports it properly.
-              console.log('Imagem a associar:', url, 'ao problema', createdProblema.id);
-            }
-          } catch (e) {
-            console.error('Erro ao associar imagens:', e);
-            Alert.alert('Aviso', 'Problema criado, mas falha ao associar imagens.');
-          }
-        }
-        navigation.goBack();
-      },
-    });
+  const abrirExistente = (problemaId: number) => {
+    Alert.alert(
+      'Já existe um registro aqui',
+      'Encontramos um problema da mesma causa neste mesmo ponto. Em vez de criar uma duplicata, abrimos o registro existente: apoie para somar sua voz e poder adicionar sua foto como evidência.',
+      [{ text: 'Ver o registro', onPress: () => navigation.navigate('DetalheProblema', { id: problemaId }) }],
+    );
   };
 
-  if (erro) return <ErrorState message={erro} />;
-  if (!coordenada) return <LoadingSpinner />;
+  const handleSubmit = async (
+    payload: CriarProblemaPayload,
+    evidencia: UploadFileInput | null,
+  ) => {
+    try {
+      const resultado = await mutateAsync(payload);
+
+      if (!resultado.criado) {
+        abrirExistente(resultado.problema.id);
+        return;
+      }
+
+      if (evidencia) {
+        setProgressoUpload(0);
+        try {
+          await enviarEvidenciaProblema(resultado.problema.id, evidencia, setProgressoUpload);
+          queryClient.invalidateQueries({
+            queryKey: ['imagens', 'problema', resultado.problema.id],
+          });
+          queryClient.invalidateQueries({ queryKey: ['eventos', resultado.problema.id] });
+        } catch (falha) {
+          Alert.alert(
+            'Problema publicado sem a foto',
+            (falha as Error).message ?? 'Não foi possível enviar a imagem.',
+          );
+        } finally {
+          setProgressoUpload(null);
+        }
+      }
+
+      navigation.goBack();
+    } catch (falha) {
+      Alert.alert('Não foi possível publicar', (falha as Error).message);
+    }
+  };
 
   return (
     <ScreenWrapper>
       <Header title="Relatar problema" onBack={() => navigation.goBack()} />
       <ProblemForm
         coordenada={coordenada}
-        submitting={isPending}
+        submitting={isPending || progressoUpload !== null}
+        progressoUpload={progressoUpload}
         onSubmit={handleSubmit}
       />
     </ScreenWrapper>
