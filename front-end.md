@@ -258,3 +258,7 @@ com `renderHook` do `@testing-library/react` sobre um `QueryClientProvider`.
 distribuído com sintaxe Flow que o esbuild do vitest não transforma, e
 `@testing-library/react-native` exigiria o preset de Jest. Jest não é usado neste
 projeto — a cobertura fica em hooks e funções puras.
+
+No CI (`.github/workflows/ci.yml`) o mobile aparece em `typecheck`, `lint` e `test`. O
+quarto job, `integration`, é só do backend (Postgres com PostGIS via Testcontainers) e
+não roda nada do app.
