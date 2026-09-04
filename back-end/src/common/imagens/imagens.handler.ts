@@ -1,8 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { AppError } from '@shared/errors.js';
-import { emTransacao } from '@shared/transacao.js';
+import { emTransacao, type Executor } from '@shared/transacao.js';
 import { enviarObjeto, removerObjeto } from '@shared/storage.js';
-import { can, type Role } from '@common/abilities.js';
+import { usuarioApoiou } from '@common/apoios/apoios.sql.js';
+import {
+  podeAdicionarEvidencia,
+  podeGerenciarProblema,
+} from '@common/problemas/problemas.handler.js';
 import { getProblemaById } from '@common/problemas/problemas.sql.js';
 import { registrarEvento } from '@common/problemaEventos/problemaEventos.handler.js';
 import * as sql from './imagens.sql.js';
@@ -48,18 +52,21 @@ export function validarArquivoImagem(mimetype: string, conteudo: Buffer): void {
   }
 }
 
-export async function saveImagem(input: ImagemInput): Promise<Imagem> {
+export async function saveImagem(input: ImagemInput, executor?: Executor): Promise<Imagem> {
   if (!input.url) {
     throw new AppError('Informe a url da imagem.', 400);
   }
 
-  const imagem = await sql.insertImagem({
-    tipo_entidade: input.tipo_entidade,
-    entidade_id: input.entidade_id,
-    url: input.url,
-    principal: input.principal ?? false,
-    ordem: input.ordem ?? 0,
-  });
+  const imagem = await sql.insertImagem(
+    {
+      tipo_entidade: input.tipo_entidade,
+      entidade_id: input.entidade_id,
+      url: input.url,
+      principal: input.principal ?? false,
+      ordem: input.ordem ?? 0,
+    },
+    executor,
+  );
 
   return imagem;
 }
@@ -77,11 +84,10 @@ export async function enviarEvidenciaProblema(
   if (!problema) {
     throw new AppError('Problema não encontrado.', 404);
   }
-  if (
-    problema.usuario_id !== input.usuarioId &&
-    !can(input.role as Role, 'problemas:moderate')
-  ) {
-    throw new AppError('Você não pode adicionar evidência a este problema.', 403);
+  const gerencia = podeGerenciarProblema(problema, input.usuarioId, input.role);
+  const apoiou = gerencia ? false : await usuarioApoiou(input.problemaId, input.usuarioId);
+  if (!podeAdicionarEvidencia(problema, input.usuarioId, input.role, apoiou)) {
+    throw new AppError('Apoie este problema para poder adicionar evidência a ele.', 403);
   }
 
   const existentes = await sql.contarImagensDaEntidade('problema', input.problemaId);
