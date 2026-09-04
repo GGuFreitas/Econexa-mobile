@@ -4,14 +4,10 @@ import { parse } from '@shared/validate.js';
 import { created, ok } from '@shared/http.js';
 import { requireAuth } from '@shared/auth.js';
 import { AppError } from '@shared/errors.js';
-import {
-  createImagemSchema,
-  listImagensParamsSchema,
-} from '@common/imagens/imagens.schemas.js';
+import { listImagensParamsSchema } from '@common/imagens/imagens.schemas.js';
 import {
   enviarEvidenciaProblema,
   listImagens,
-  saveImagem,
   TAMANHO_MAXIMO_IMAGEM,
 } from '@common/imagens/imagens.handler.js';
 
@@ -26,12 +22,6 @@ function parseId(value: string): number {
 export async function imagensRoutes(app: FastifyInstance): Promise<void> {
   await app.register(fastifyMultipart, {
     limits: { fileSize: TAMANHO_MAXIMO_IMAGEM, files: 1 },
-  });
-
-  app.post('/', { preHandler: requireAuth }, async (request, reply) => {
-    const body = parse(createImagemSchema, request.body);
-    const imagem = await saveImagem(body);
-    return created(reply, imagem);
   });
 
   app.post('/upload/problema/:problemaId', { preHandler: requireAuth }, async (request, reply) => {

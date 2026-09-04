@@ -1,4 +1,4 @@
-export type UserRole = 'citizen' | 'specialist' | 'organization';
+export type UserRole = 'citizen' | 'specialist' | 'admin';
 
 export type PublicUser = {
   id: number;
@@ -12,7 +12,6 @@ export type RegisterInput = {
   nome: string;
   email: string;
   password: string;
-  role?: UserRole;
 };
 
 export type LoginInput = {

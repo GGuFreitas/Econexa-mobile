@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { parse } from '@shared/validate.js';
 import { created, ok } from '@shared/http.js';
-import { requireAuth } from '@shared/auth.js';
+import { optionalAuth, requireAuth } from '@shared/auth.js';
 import { AppError } from '@shared/errors.js';
 import {
   atualizarMobilizacaoSchema,
@@ -42,29 +42,48 @@ export async function mobilizacoesRoutes(app: FastifyInstance): Promise<void> {
     return ok(reply, mobilizacoes);
   });
 
-  app.get('/:id', async (request, reply) => {
-    const mobilizacao = await obterMobilizacao(parseId((request.params as { id: string }).id));
+  app.get('/:id', { preHandler: optionalAuth }, async (request, reply) => {
+    const mobilizacao = await obterMobilizacao(
+      parseId((request.params as { id: string }).id),
+      request.user?.id,
+      request.user?.role,
+    );
     return ok(reply, mobilizacao);
   });
 
   app.patch('/:id', { preHandler: requireAuth }, async (request, reply) => {
     const id = parseId((request.params as { id: string }).id);
     const body = parse(atualizarMobilizacaoSchema, request.body);
-    const mobilizacao = await atualizarMobilizacao(id, body);
+    const mobilizacao = await atualizarMobilizacao(
+      id,
+      body,
+      request.user!.id,
+      request.user!.role,
+    );
     return ok(reply, mobilizacao);
   });
 
   app.patch('/:id/status', { preHandler: requireAuth }, async (request, reply) => {
     const id = parseId((request.params as { id: string }).id);
     const { status } = parse(atualizarStatusMobilizacaoSchema, request.body);
-    const mobilizacao = await atualizarStatusMobilizacao(id, status, request.user!.id);
+    const mobilizacao = await atualizarStatusMobilizacao(
+      id,
+      status,
+      request.user!.id,
+      request.user!.role,
+    );
     return ok(reply, mobilizacao);
   });
 
   app.post('/:id/resultado', { preHandler: requireAuth }, async (request, reply) => {
     const id = parseId((request.params as { id: string }).id);
     const body = parse(resultadoMobilizacaoSchema, request.body);
-    const mobilizacao = await registrarResultadoMobilizacao(id, body, request.user!.id);
+    const mobilizacao = await registrarResultadoMobilizacao(
+      id,
+      body,
+      request.user!.id,
+      request.user!.role,
+    );
     return created(reply, mobilizacao);
   });
 

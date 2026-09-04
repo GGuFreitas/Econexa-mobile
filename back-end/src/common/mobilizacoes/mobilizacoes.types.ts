@@ -17,6 +17,7 @@ export interface Mobilizacao {
   criado_em: string;
   atualizado_em: string;
   cont_participantes?: number;
+  pode_gerenciar?: boolean;
 }
 
 export interface CriarMobilizacaoInput {

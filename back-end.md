@@ -82,7 +82,8 @@ src/
 ├── config/      # env, pool do banco, knexfile, migrations
 ├── shared/      # primitivos: errors, auth, http, validate, cache, queue
 ├── common/      # blocos reutilizáveis: auth/, imagens/, abilities.ts
-├── features/    # domínio: problemas, peticoes, mutiroes, apoios, eventos, usuarios, regioes, niveis
+├── features/    # domínio: peticoes (as demais pastas ainda são placeholders)
+├── scripts/     # operação manual fora da API (promoverAdmin)
 ├── routes/      # fios HTTP por feature (routes/<feature>/index.ts)
 └── workers/     # reservado para BullMQ (fase futura)
 ```
@@ -126,18 +127,54 @@ const response = await fetch('https://googleapis.com/v1/your-endpoint', {
 
 ## 5. Regras de autenticação e perfil
 
-O sistema de login deve ser simples no MVP:
-- email e senha
-- perfil básico com papel
-- dados mínimos de cadastro
+Login por e-mail e senha (argon2), JWT de 7 dias assinado com `JWT_SECRET`, payload
+`{ sub, email, role }`. `shared/auth.ts` expõe `requireAuth` (401 sem token válido) e
+`optionalAuth` (rota pública que muda de resposta quando há token).
 
-Estrutura recomendada:
-- users
-- profiles
-- roles
-- user_roles
+**Papéis: `citizen`, `specialist`, `admin`.**
 
-Não comece com um sistema de permissões muito complexo. Papel + regra simples resolve bem para a primeira versão.
+- **`POST /auth/register` não aceita `role`.** Todo cadastro cria `citizen`, e o campo
+  é ignorado se vier no corpo. Antes o schema aceitava `role` e o repassava para o
+  `INSERT`: qualquer pessoa se registrava como `specialist` e, com isso, ganhava
+  `problemas:moderate` — poder de mexer no conteúdo dos outros. Era escalada de
+  privilégio por payload.
+- **`organization` saiu do modelo.** Era decorativo: sua única habilidade exclusiva
+  (`mutiroes:manage`) nunca foi consultada em lugar nenhum. O papel e seu fluxo estão
+  fora de escopo até que exista um produto para eles.
+- **`specialist` é competência técnica, não poder sobre conteúdo alheio.** Ele não
+  modera. Hoje ele não tem habilidade nenhuma a mais que `citizen`; o que o distingue
+  é o rótulo. Verificação de especialista por certificado segue fora de escopo.
+- **`admin` é o único que modera.** `common/abilities.ts` declara **uma** habilidade,
+  `problemas:moderate`, e ela pertence só ao `admin`. As outras nove habilidades que
+  a matriz declarava (`problemas:create`, `peticoes:*`, `apoios:give`, `mutiroes:*`,
+  `eventos:create`, `usuarios:*`) nunca foram consultadas por linha de código nenhuma
+  e foram removidas em vez de continuarem sugerindo um sistema de permissões que não
+  existe. `ehAdmin(role)` cobre as checagens que são de papel, não de habilidade
+  (gestão de mobilização, leitura da lista de denunciantes).
+
+### 5.1 Como um `admin` passa a existir
+
+Nenhum caminho de código promove alguém a `admin`: não há rota, não há flag de
+cadastro, não há env var. **É operação administrativa manual**, feita com acesso ao
+banco, deliberadamente fora do alcance da API:
+
+```bash
+cd back-end
+npm run admin:promover -- pessoa@exemplo.org
+```
+
+O script (`src/scripts/promoverAdmin.ts`) faz um `UPDATE users SET role = 'admin'`
+pelo e-mail, usando a `DATABASE_URL` do ambiente, e falha com código 1 se o e-mail não
+existe. O SQL equivalente, para quem preferir aplicar direto:
+
+```sql
+UPDATE users SET role = 'admin' WHERE email = 'pessoa@exemplo.org';
+```
+
+**Consequência assumida:** num banco recém-migrado não existe `admin`, então ninguém
+remove problema alheio nem lê a lista de denunciantes até que alguém seja promovido à
+mão. É estritamente mais seguro que o estado anterior (em que bastava se cadastrar como
+`specialist`) e não regride nenhuma tela: não existe interface de moderação no mobile.
 
 ## 6. Fila para tarefas assíncronas
 
@@ -202,20 +239,21 @@ Use cron apenas para tarefas periódicas e previsíveis.
 - problemas
 - peticoes
 - apoios (antes "supports")
-- mutiroes
-- eventos
+- mobilizacoes
 - regioes
 - niveis
 
-O MVP pode começar com auth, problemas, apoios e mutiroes. Os demais podem entrar depois, sem perder a coerência do sistema.
+O MVP começou com auth, problemas, apoios e mobilizações. Os demais podem entrar
+depois, sem perder a coerência do sistema. `eventos` e `mutiroes` saíram desta lista:
+viraram um domínio só, `mobilizacoes` (seção 12).
 
 ## 11. Módulo problemas (geoespacial)
 
 O módulo `problemas` é a espinha dorsal do mapa. Implementado em `features/problemas/` (handler + `.sql`) e exposto em `routes/problemas/`.
 
 - PostGIS obrigatório: o container do banco usa `postgis/postgis:15-3.4`; a migration `002` habilita `postgis` + `pgcrypto`.
-- `problemas.geom` é `geometry(Point, 4326)`, e a unidade do SRID 4326 é **grau**. Por isso toda comparação de distância faz cast para `geography`, onde o argumento é **metro**: `ST_DWithin(p.geom::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography, $3)`, e o mesmo cast no `ST_Distance` que alimenta o alias `distancia_m`. Vale para `findNearbyProblema`, `listarProblemas` e `listarEventos` — comparar em `geometry` fazia o raio valer graus (o `15` do dedupe eram ~1.665 km e o `5000` da listagem era um filtro no-op).
-- Índices: `idx_problemas_geom_geog` e `idx_eventos_geom_geog` são índices de **expressão** sobre `(geom::geography)` (migration `010`), porque o planner não usa um GIST da coluna crua quando a consulta compara o valor com cast. Os GIST antigos sobre `geom` foram removidos: nenhuma consulta usa mais predicado espacial em `geometry`, e o que sobrou (`ST_X`/`ST_Y`) são acessores escalares que não usam índice.
+- `problemas.geom` é `geometry(Point, 4326)`, e a unidade do SRID 4326 é **grau**. Por isso toda comparação de distância faz cast para `geography`, onde o argumento é **metro**: `ST_DWithin(p.geom::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography, $3)`, e o mesmo cast no `ST_Distance` que alimenta o alias `distancia_m`. Vale para `findNearbyProblema` e `listarProblemas` — comparar em `geometry` fazia o raio valer graus (o `15` do dedupe eram ~1.665 km e o `5000` da listagem era um filtro no-op).
+- Índices: `idx_problemas_geom_geog` é índice de **expressão** sobre `(geom::geography)` (migration `010`), porque o planner não usa um GIST da coluna crua quando a consulta compara o valor com cast. O GIST antigo sobre `geom` foi removido: nenhuma consulta usa mais predicado espacial em `geometry`, e o que sobrou (`ST_X`/`ST_Y`) são acessores escalares que não usam índice. `idx_eventos_geom_geog` existiu até a remoção do domínio `eventos` (seção 12.3) e caiu junto com a tabela.
 - Coordenadas validadas contra o bbox do Brasil (lat −33.75..5.27, lng −73.99..−34.79).
 - `tipo` distingue `problema` | `ponto_positivo` | `cultural`; `status` segue o workflow `ativo → em_analise → encaminhado → resolvido / removido`.
 - `causas` fixas (Mobilidade, Infraestrutura, Poluição, Desmatamento, Cultura, Segurança, Saúde, Educação) + `tags` livres para filtro fino no mapa.
@@ -232,29 +270,87 @@ O módulo `problemas` é a espinha dorsal do mapa. Implementado em `features/pro
 - `GET /problemas/:id/eventos` (público) — histórico do problema (seção 14).
 - `POST/DELETE /problemas/:id/apoios` (auth) — apoio idempotente ponderado por `peso_voto`; emite `APOIO_CRIADO` / `APOIO_REMOVIDO`.
 - `POST /problemas/:id/denuncias` (auth, rate-limit) — denúncia de conteúdo (`motivo` ∈ spam|conteudo_inadequado|duplicado|outro). Uma por usuário por problema: denunciar de novo troca o motivo.
-- `GET /problemas/:id/denuncias` (auth) — lista denúncias (moderação).
+- `GET /problemas/:id/denuncias` (**auth + `admin`**) — lista as denúncias com `usuario_id` e `motivo`. Antes bastava estar logado: qualquer pessoa lia quem denunciou o quê, e o autor do problema descobria quem o denunciou. Não há consumidor no mobile; a rota existe para moderação.
 
 ### 11.2 Anti-fake / anti-spam
 - **Dedupe de coordenadas**: `criarProblema` procura problema da mesma `causa_id` e `tipo` num raio de **30 m** (`ST_DWithin` em `geography`), ignorando `removido` e `resolvido` e ordenando por `ST_Distance` para pegar o mais próximo. Achando um, devolve `{ criado: false, problema }` em vez de criar duplicata. Os 30 m são deliberados: o erro típico de GPS de celular é de 5 a 20 m, e um raio menor faria duas pessoas relatarem o mesmo buraco de lados opostos da rua como registros diferentes.
-- **Rate-limit**: primitiva em `shared/ratelimit.ts` (janela fixa em memória; trocar por Redis depois). Aplicada em `POST /problemas` (5/min por usuário) e `POST /problemas/:id/denuncias` (3/min por usuário); estouro responde `429`.
+- **Rate-limit**: primitiva em `shared/ratelimit.ts` (janela fixa em memória; trocar por Redis depois), com o guard `rateLimitGuard(limiter, chave)` e as duas chaves usadas hoje, `porUsuario` (`request.user.id`) e `porOrigem` (`request.ip`). Estouro responde `429`.
+
+| Rota | Limite | Chave |
+|---|---|---|
+| `POST /problemas` | 5/min | usuário |
+| `POST /problemas/:id/denuncias` | 3/min | usuário |
+| `POST /problemas/:id/comentarios` | 10/min | usuário |
+| `POST /problemas/:id/encaminhamentos` (e `/reenviar`) | 3/min | usuário |
+| `POST /auth/login` | 10/min | origem |
+| `POST /auth/register` | 5/min | origem |
+
+  Login e cadastro são as duas rotas anônimas, então a chave é o IP: sem elas não havia
+  **nenhuma** proteção contra força bruta de senha nem contra criação de contas em
+  massa.
 - **Denúncias**: tabela `problema_denuncias` com `UNIQUE (problema_id, usuario_id)`; `contarDenuncias` usa `COUNT(DISTINCT usuario_id)`. Alimenta moderação e o futuro escalonamento.
 
-## 12. Módulo eventos (mutirões)
+## 12. Módulo mobilizações (e a remoção do domínio eventos)
 
-Mutirões e eventos cívicos. Implementado em `common/eventos/` e exposto em `routes/eventos/`.
+Ação organizada em cima de um problema. Implementado em `common/mobilizacoes/` e
+exposto em `routes/mobilizacoes/`.
 
-- `eventos` (geom `Point` opcional, `tipo` ∈ `mutirao|encontro|outro`, `status` ∈ `planejado|em_andamento|realizado|cancelado`).
-- `evento_problema` (PK `evento_id, problema_id`, `resolveu`): vincula um problema a um mutirão; se `resolveu=true`, o problema vai para `status='resolvido'`.
-- `evento_participantes` (PK `evento_id, usuario_id`): inscrições idempotentes (`ON CONFLICT DO NOTHING`).
+- `mobilizacoes` (`problema_id`, `usuario_id`, `titulo`, `descricao`, `data_inicio`,
+  `data_fim`, `local_nome`, `geom` opcional, `status`, `resultado_descricao`,
+  `resultado_metricas`).
+- `mobilizacao_participantes` (PK `mobilizacao_id, usuario_id`): participação
+  idempotente (`ON CONFLICT DO NOTHING`).
+- Transições de `status`: `agendada → em_andamento | cancelada`,
+  `em_andamento → realizada | cancelada`; `realizada` e `cancelada` são terminais.
 
 ### 12.1 Endpoints
-- `POST /eventos` (auth) — cria evento (validação: título ≥3, bbox Brasil, `dataInicio` obrigatória).
-- `GET /eventos` — lista por proximidade (`lat`,`lng`,`raio` em **metros**, comparado em `geography`) ou data; filtros `status`, `tipo`, `causaId`.
-- `GET /eventos/:id` — detalhe.
-- `GET /eventos/:id/estatisticas` — `cont_participantes` e `problemas_vinculados`.
-- `POST /eventos/:id/problemas/:problemaId` (auth) — vincula problema (`body.resolveu` opcional).
-- `POST /eventos/:id/inscricoes` (auth) — inscreve (idempotente).
-- `DELETE /eventos/:id/inscricoes` (auth) — desinscreve.
+- `POST /mobilizacoes` (auth) — cria a mobilização e emite `MOBILIZACAO_CRIADA`.
+- `GET /mobilizacoes?problemaId=` — lista as mobilizações de um problema.
+- `GET /mobilizacoes/:id` (público, auth opcional) — detalhe com `cont_participantes` e
+  `pode_gerenciar`.
+- `PATCH /mobilizacoes/:id` (auth) — edita os dados.
+- `PATCH /mobilizacoes/:id/status` (auth) — muda o status pela tabela de transições.
+- `POST /mobilizacoes/:id/resultado` (auth) — registra o resultado.
+- `POST/DELETE /mobilizacoes/:id/participar` (auth) — entra e sai.
+
+### 12.2 Autorização
+
+`atualizarMobilizacao`, `atualizarStatusMobilizacao` e `registrarResultadoMobilizacao`
+só faziam `exigirMobilizacao(id)` — checavam **existência**, não dono. Qualquer pessoa
+autenticada cancelava, concluía ou reescrevia mobilização alheia. Agora as três exigem
+**criador ou `admin`** (`podeGerenciarMobilizacao`) e respondem 403 para o resto. A
+mesma resposta vira o campo `pode_gerenciar` no payload do detalhe, para o app refletir
+o que o servidor autoriza em vez de adivinhar.
+
+`registrarResultado` também forçava `status = 'realizada'` no SQL sem consultar as
+transições: `agendada → realizada` e `cancelada → realizada` eram alcançáveis por essa
+rota enquanto o `PATCH /:id/status` as recusaria. Agora passa pela mesma validação —
+registrar resultado a partir de `agendada` ou `cancelada` responde 400. Registrar
+resultado numa mobilização **já** `realizada` continua permitido (é preencher o relato,
+não mudar de estado) e não reemite `MOBILIZACAO_REALIZADA`.
+
+### 12.3 O domínio `eventos` foi removido
+
+`common/eventos/`, `routes/eventos/` e as tabelas `eventos`, `evento_problema` e
+`evento_participantes` saíram do projeto (migration `20260904_014_remove_eventos`, com
+`down` que recria as três).
+
+Motivos, na ordem em que pesam:
+
+- **`POST /eventos/:id/problemas/:problemaId` com `resolveu=true` fazia
+  `UPDATE problemas SET status = 'resolvido'` sem nenhuma checagem de dono.** Pulava
+  `podeGerenciarProblema`, pulava `TRANSICOES_STATUS` e não emitia `STATUS_ALTERADO`
+  nem `RESOLVIDO`. Qualquer pessoa autenticada resolvia problema alheio, e a timeline
+  não registrava nada.
+- **Nenhum cliente consumia.** O mobile chama `/problemas/:id/eventos`, que é o domínio
+  `problemaEventos` (seção 14) — a timeline do problema, coisa diferente. Não havia uma
+  única chamada a `/eventos`.
+- **Sobreposição com `mobilizacoes`**, que é o domínio vivo para o mesmo conceito e que
+  passa por transação, permissão e timeline.
+
+`idx_mobilizacoes_geom` foi junto: era um GIST sobre `mobilizacoes.geom` e nenhuma
+consulta do módulo faz predicado espacial (a listagem filtra por `problema_id`). O
+`down` da migration recria também esse índice.
 
 ## 13. Módulo comentários
 
@@ -329,9 +425,16 @@ problemas antigos, portanto, não tem retirada de apoio anterior ao M9.5.
 
 ## 15. Módulo imagens (upload de evidência)
 
-`common/imagens/` continua registrando qualquer imagem por URL
-(`POST /imagens`, usado pelo resultado de mobilização), e ganhou o upload real.
+`common/imagens/` guarda o registro das imagens e o upload real da evidência.
 
+- **`POST /imagens` foi removido.** Aceitava `tipo_entidade` como string livre,
+  `entidade_id` como número sem FK e `url` como qualquer URL. Era um bypass completo do
+  fluxo de evidência: contornava `podeAdicionarEvidencia`, o limite de 5 MB, a validação
+  de MIME e a conferência de assinatura, e não emitia `EVIDENCIA_ADICIONADA`. Não tinha
+  consumidor no mobile. O caminho legítimo é o upload abaixo; `saveImagem` continua
+  existindo como função interna, usada pelo resultado de mobilização dentro da mesma
+  transação.
+- `GET /imagens/:tipo_entidade/:entidade_id` (público) — leitura, que o mobile usa.
 - `POST /imagens/upload/problema/:problemaId` (auth, `multipart/form-data`, campo
   `file`). É o mesmo caminho que o mobile já chamava desde o M6 e que não existia.
 - `@fastify/multipart` é registrado dentro de `routes/imagens/`, com
@@ -451,6 +554,11 @@ PostGIS, sem MinIO, sem Mailpit. Por isso as suítes são separadas por glob e p
   mockados: o que está sob teste ali é o comportamento do banco — unidade real de
   distância, atomicidade do apoio, unicidade da denúncia, índice parcial do
   encaminhamento e as migrations sobre dado sujo.
+- Parte da suíte de integração é **de rota**, não de banco: `src/tests/integracao/servidor.ts`
+  monta um Fastify com o mesmo `registerRoutes` da aplicação e responde a `app.inject`.
+  É o que prova autorização e superfície HTTP de verdade — cadastro que ignora o `role`
+  do payload, `429` de login e cadastro, e `404` nas rotas removidas
+  (`POST /imagens`, `/eventos`).
 - Testes espaciais **têm** de ser de integração. Um spec que só afirma
   `expect(sql).toContain('ST_DWithin')` passa com raio 15, 15000 ou 0,0000001 — é
   estruturalmente incapaz de detectar erro de unidade. Só um teste que insere dois

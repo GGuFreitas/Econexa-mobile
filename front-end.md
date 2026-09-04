@@ -77,7 +77,13 @@ Importações usam aliases (`@features`, `@shared`, `@store`, `@navigation`,
 `causa_id` (1-8), `tipo` (problema|ponto_positivo|cultural), `status`
 (ativo|em_analise|encaminhado|resolvido|removido), `cont_apoios`,
 `distancia_m?` (**metros de verdade** desde o M9.5; antes o backend devolvia graus com
-nome de metro). `role` do usuário = `citizen|specialist|organization`.
+nome de metro). `role` do usuário = `citizen|specialist|admin`.
+
+`POST /auth/register` **não aceita mais `role`**: `RegisterInput` tem só `nome`, `email`
+e `password`, e todo cadastro nasce `citizen`. O campo era escalada de privilégio —
+quem se registrasse como `specialist` ganhava moderação no servidor. `organization` saiu
+do modelo por ser decorativo, então o `ROLE_LABEL` do `PerfilScreen` passou a rotular
+`citizen`, `specialist` e `admin`.
 
 `POST /problemas` **não devolve mais o problema direto**: devolve
 `{ criado: boolean, problema: Problema }`, com **201** quando criou e **200** quando o
@@ -93,7 +99,7 @@ Endpoints consumidos:
 | `GET /problemas/:id` | `useProblema` (traz `pode_encaminhar`, `pode_adicionar_evidencia` e `transicoes_permitidas`) |
 | `GET /problemas/estatisticas`, `GET /problemas/tendencias` | filtros do mapa, perfil |
 | `POST/DELETE /problemas/:id/apoios` | `useApoio` |
-| `POST/GET /problemas/:id/denuncias` | `useDenuncia` |
+| `POST /problemas/:id/denuncias` | `useDenuncia` (o `GET` da lista virou exclusivo de `admin` e não tem consumidor no app) |
 | `GET/POST /problemas/:id/comentarios`, `DELETE .../:comentarioId` | feature comentários |
 | `GET /problemas/:id/eventos` | `useTimeline` |
 | `PATCH /problemas/:id/status` | `useAlterarStatus` |
@@ -115,6 +121,13 @@ O mesmo vale para as permissões do M9/M9.5: `pode_encaminhar`,
 `pode_registrar_resposta` e `pode_reenviar` (em cada encaminhamento) vêm calculados do
 servidor. `opcoesDeStatus` só monta as opções que a API listou; se a lista vier
 vazia, o botão nem aparece — e a API responde `403` de qualquer forma.
+
+A mobilização entrou na mesma regra: `GET /mobilizacoes/:id` devolve `pode_gerenciar`, e
+o `MobilizacaoDetailScreen` usa esse campo para decidir se mostra Iniciar, Cancelar,
+Marcar como realizada e Adicionar resultado. Antes a tela tinha
+`const isCriador = true; // TODO`, ou seja, oferecia as quatro ações a todo mundo — e o
+servidor aceitava, porque também não checava dono. Agora o servidor responde 403 e o app
+só oferece o que ele autoriza.
 
 Cada booleano serve a **um** conceito. Até o M9 o `EvidenciasProblema` recebia
 `podeAdicionar={problema.pode_encaminhar}`, ou seja, um campo de encaminhamento
