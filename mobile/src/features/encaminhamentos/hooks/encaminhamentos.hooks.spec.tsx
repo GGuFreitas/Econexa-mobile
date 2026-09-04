@@ -12,6 +12,7 @@ import { useOrgaos } from './useOrgaos';
 import { useEncaminhamentos } from './useEncaminhamentos';
 import { useCriarEncaminhamento } from './useCriarEncaminhamento';
 import { useRegistrarResposta } from './useRegistrarResposta';
+import { useReenviarEncaminhamento } from './useReenviarEncaminhamento';
 import type { Encaminhamento } from '../types';
 
 const PROBLEMA_ID = 3;
@@ -26,13 +27,25 @@ const encaminhamento: Encaminhamento = {
   mensagem: 'corpo da petição',
   status: 'enviado',
   enviado_em: '2026-09-03T10:00:00.000Z',
+  falha_motivo: null,
   protocolo: null,
   resposta: null,
+  resposta_verificada: false,
   respondido_em: null,
   criado_em: '2026-09-03T10:00:00.000Z',
   orgao,
   autor: { id: 5, nome: 'Ana' },
   pode_registrar_resposta: true,
+  pode_reenviar: false,
+};
+
+const comFalha: Encaminhamento = {
+  ...encaminhamento,
+  status: 'falhou',
+  enviado_em: null,
+  falha_motivo: 'smtp fora do ar',
+  pode_registrar_resposta: false,
+  pode_reenviar: true,
 };
 
 function criarWrapper() {
@@ -199,5 +212,58 @@ describe('hooks de encaminhamento', () => {
 
     await waitFor(() => expect(result.current.responder.isError).toBe(true));
     expect(result.current.lista.data?.[0].status).toBe('enviado');
+  });
+
+  it('reenvia o encaminhamento que falhou e recarrega a lista já enviada', async () => {
+    vi.mocked(api.get)
+      .mockResolvedValueOnce({ data: [comFalha] })
+      .mockResolvedValue({ data: [encaminhamento] });
+    vi.mocked(api.post).mockResolvedValue({ data: encaminhamento });
+
+    const { result } = renderHook(
+      () => ({
+        lista: useEncaminhamentos(PROBLEMA_ID),
+        reenviar: useReenviarEncaminhamento(PROBLEMA_ID),
+      }),
+      { wrapper: criarWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.lista.data?.[0].pode_reenviar).toBe(true));
+    expect(result.current.lista.data?.[0].falha_motivo).toBe('smtp fora do ar');
+
+    await act(async () => {
+      await result.current.reenviar.mutateAsync(comFalha.id);
+    });
+
+    await waitFor(() => expect(result.current.lista.data?.[0].status).toBe('enviado'));
+    expect(api.post).toHaveBeenCalledWith(
+      `/problemas/${PROBLEMA_ID}/encaminhamentos/${comFalha.id}/reenviar`,
+    );
+    expect(result.current.lista.data?.[0].pode_registrar_resposta).toBe(true);
+  });
+
+  it('mantém a falha visível quando o reenvio também é recusado', async () => {
+    vi.mocked(api.get).mockResolvedValue({ data: [comFalha] });
+    vi.mocked(api.post).mockRejectedValue(new Error('Você não pode reenviar este encaminhamento.'));
+
+    const { result } = renderHook(
+      () => ({
+        lista: useEncaminhamentos(PROBLEMA_ID),
+        reenviar: useReenviarEncaminhamento(PROBLEMA_ID),
+      }),
+      { wrapper: criarWrapper() },
+    );
+
+    await waitFor(() => expect(result.current.lista.data).toHaveLength(1));
+
+    await act(async () => {
+      await result.current.reenviar.mutateAsync(comFalha.id).catch(() => undefined);
+    });
+
+    await waitFor(() => expect(result.current.reenviar.isError).toBe(true));
+    expect((result.current.reenviar.error as Error).message).toBe(
+      'Você não pode reenviar este encaminhamento.',
+    );
+    expect(result.current.lista.data?.[0].status).toBe('falhou');
   });
 });

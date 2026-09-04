@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { apresentarEvento, apresentarEventos } from './eventos';
+import {
+  apresentarEvento,
+  apresentarEventos,
+  AVISO_RESPOSTA_NAO_VERIFICADA,
+} from './eventos';
 import type { ProblemaEvento, ProblemaEventoTipo } from '../types';
 
 function evento(
@@ -16,6 +20,8 @@ describe('apresentarEvento', () => {
       'PROBLEMA_CRIADO',
       'EVIDENCIA_ADICIONADA',
       'COMENTARIO_CRIADO',
+      'APOIO_CRIADO',
+      'APOIO_REMOVIDO',
       'MOBILIZACAO_CRIADA',
       'MOBILIZACAO_REALIZADA',
       'ENCAMINHADO',
@@ -47,16 +53,30 @@ describe('apresentarEvento', () => {
     expect(apresentado.descricao).toBe('Ativo → Encaminhado');
   });
 
-  it('junta órgão e protocolo na resposta recebida', () => {
+  it('junta órgão e protocolo na resposta, sempre marcada como relato do cidadão', () => {
     expect(
       apresentarEvento(
         evento('RESPOSTA_RECEBIDA', { orgao_nome: 'Secretaria de Obras', protocolo: 'OS-1' }),
       ).descricao,
-    ).toBe('Secretaria de Obras — protocolo OS-1');
+    ).toBe(`Secretaria de Obras — protocolo OS-1. ${AVISO_RESPOSTA_NAO_VERIFICADA}`);
 
     expect(
       apresentarEvento(evento('RESPOSTA_RECEBIDA', { orgao_nome: 'Secretaria de Obras' })).descricao,
-    ).toBe('Secretaria de Obras');
+    ).toBe(`Secretaria de Obras. ${AVISO_RESPOSTA_NAO_VERIFICADA}`);
+  });
+
+  it('não deixa a resposta passar por confirmação do órgão nem sem dado nenhum', () => {
+    const apresentado = apresentarEvento(evento('RESPOSTA_RECEBIDA'));
+
+    expect(apresentado.titulo).toBe('Resposta relatada pelo cidadão');
+    expect(apresentado.descricao).toBe(AVISO_RESPOSTA_NAO_VERIFICADA);
+  });
+
+  it('dá título próprio para apoio dado e apoio retirado', () => {
+    expect(apresentarEvento(evento('APOIO_CRIADO')).titulo).toBe('Apoiou o problema');
+    expect(apresentarEvento(evento('APOIO_REMOVIDO')).titulo).toBe('Retirou o apoio');
+    expect(apresentarEvento(evento('APOIO_CRIADO')).autor).toBe('Ana');
+    expect(apresentarEvento(evento('APOIO_CRIADO')).descricao).toBeUndefined();
   });
 
   it('não inventa descrição quando os dados do evento estão vazios', () => {
