@@ -16,9 +16,9 @@ export interface Mobilizacao {
   resultado_metricas: Record<string, number> | null;
   criado_em: string;
   atualizado_em: string;
-  cont_participantes?: number;
-  usuario_participa?: boolean;
-  pode_gerenciar?: boolean;
+  cont_participantes: number;
+  usuario_participa: boolean;
+  pode_gerenciar: boolean;
 }
 
 export interface MobilizacaoQuery {
@@ -29,7 +29,6 @@ export interface MobilizacaoQuery {
 
 export interface CriarMobilizacaoInput {
   problemaId: number;
-  usuarioId: number;
   titulo: string;
   descricao?: string;
   dataInicio: string;
@@ -55,7 +54,3 @@ export interface ResultadoMobilizacaoInput {
   imagens?: string[];
 }
 
-export interface ParticipacaoInput {
-  mobilizacaoId: number;
-  usuarioId: number;
-}

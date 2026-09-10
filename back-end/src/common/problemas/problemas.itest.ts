@@ -10,11 +10,19 @@ import {
 } from '../../tests/integracao/fixtures.js';
 import {
   criarProblema,
+  estatisticasProblemas,
   invalidarCacheDeProblemas,
   listarProblemas,
   RAIO_DEDUPE_METROS,
+  tendenciasProblemasHandler,
 } from './problemas.handler.js';
+import { listarProblemasQuerySchema } from './problemas.schemas.js';
 import { findNearbyProblema } from './problemas.sql.js';
+
+async function marcarTags(problemaId: number, tags: string[]): Promise<number> {
+  await dbPool.query('UPDATE problemas SET tags = $2 WHERE id = $1', [problemaId, tags]);
+  return problemaId;
+}
 
 const A_20_METROS = deslocarParaNorte(SAO_PAULO.lat, 20);
 const A_110_METROS = deslocarParaNorte(SAO_PAULO.lat, 110);
@@ -183,5 +191,88 @@ describe('problemas: contrato espacial em metros', () => {
     const lista = await listarProblemas({});
 
     expect(lista.map((p) => p.titulo)).toEqual(['Encaminhado']);
+  });
+
+  it('as estatísticas param no raio pedido em vez de contar o país inteiro', async () => {
+    await criarProblemaNoBanco({ usuarioId: autor, lat: A_110_METROS, titulo: 'Perto' });
+    await criarProblemaNoBanco({ usuarioId: autor, lat: A_2_KM, titulo: 'Longe' });
+    await criarProblemaNoBanco({ usuarioId: autor, lat: -8.0476, lng: -34.877, titulo: 'Recife' });
+
+    const noRaio = await estatisticasProblemas({
+      lat: SAO_PAULO.lat,
+      lng: SAO_PAULO.lng,
+      raio: 200,
+    });
+    const semPonto = await estatisticasProblemas({});
+
+    expect(noRaio.total).toBe(1);
+    expect(semPonto.total).toBe(3);
+  });
+
+  it('a quebra por causa também respeita o raio', async () => {
+    await criarProblemaNoBanco({ usuarioId: autor, lat: A_110_METROS, causaId: 1 });
+    await criarProblemaNoBanco({ usuarioId: autor, lat: A_2_KM, causaId: 2 });
+
+    const { porCausa, porTipo, total } = await estatisticasProblemas({
+      lat: SAO_PAULO.lat,
+      lng: SAO_PAULO.lng,
+      raio: 500,
+    });
+
+    expect(porCausa).toEqual([{ causa_id: 1, total: 1 }]);
+    expect(porTipo).toEqual([{ tipo: 'problema', total: 1 }]);
+    expect(total).toBe(1);
+    expect(porCausa.reduce((soma, causa) => soma + causa.total, 0)).toBe(total);
+  });
+
+  it('as tendências param no raio pedido', async () => {
+    await criarProblemaNoBanco({ usuarioId: autor, lat: A_110_METROS, titulo: 'Perto' });
+    await criarProblemaNoBanco({ usuarioId: autor, lat: A_2_KM, titulo: 'Longe' });
+
+    const proximas = await tendenciasProblemasHandler({
+      lat: SAO_PAULO.lat,
+      lng: SAO_PAULO.lng,
+      raio: 500,
+    });
+    const todas = await tendenciasProblemasHandler({});
+
+    expect(proximas.map((problema) => problema.titulo)).toEqual(['Perto']);
+    expect(todas).toHaveLength(2);
+  });
+
+  it('filtrar por várias tags casa tag a tag, não pela string junta', async () => {
+    await marcarTags(
+      await criarProblemaNoBanco({ usuarioId: autor, titulo: 'Com enchente' }),
+      ['enchente'],
+    );
+    await marcarTags(
+      await criarProblemaNoBanco({ usuarioId: autor, lat: A_110_METROS, titulo: 'Com buraco' }),
+      ['buraco'],
+    );
+    await marcarTags(
+      await criarProblemaNoBanco({ usuarioId: autor, lat: A_2_KM, titulo: 'Sem nenhuma' }),
+      ['poda'],
+    );
+
+    const filtradas = await listarProblemas({ tags: ['enchente', 'buraco'] });
+    const literal = await listarProblemas({ tags: ['enchente,buraco'] });
+
+    expect(filtradas.map((problema) => problema.titulo).sort()).toEqual([
+      'Com buraco',
+      'Com enchente',
+    ]);
+    expect(literal).toHaveLength(0);
+  });
+
+  it('o schema aceita uma tag só, a lista separada por vírgula e o array repetido', () => {
+    expect(listarProblemasQuerySchema.parse({ tags: 'enchente' }).tags).toEqual(['enchente']);
+    expect(listarProblemasQuerySchema.parse({ tags: 'enchente, buraco' }).tags).toEqual([
+      'enchente',
+      'buraco',
+    ]);
+    expect(listarProblemasQuerySchema.parse({ tags: ['enchente', 'buraco'] }).tags).toEqual([
+      'enchente',
+      'buraco',
+    ]);
   });
 });

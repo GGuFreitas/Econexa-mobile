@@ -8,9 +8,8 @@ O backend precisa ser simples, previsível e rápido para entregar:
 - autenticação e perfis;
 - cadastro de problemas;
 - apoio da comunidade;
-- organização de mutirões e eventos;
-- notificações básicas;
-- integração com IA via Google API quando necessário.
+- organização de mutirões (módulo `mobilizacoes`);
+- notificações básicas (planejadas no M11, ainda não implementadas).
 
 ## 2. Variáveis de ambiente
 
@@ -20,8 +19,12 @@ O backend usa `dotenv` e valida com `zod`. As variáveis obrigatórias são:
 - `PORT`: porta do servidor
 - `DATABASE_URL`: conexão Postgres
 - `CORS_ORIGINS`: origens permitidas separadas por vírgula
-- `GOOGLE_API_KEY`: chave da API gratuita do Google para IA
 - `JWT_SECRET`: segredo do token (mínimo 16 caracteres)
+
+`GOOGLE_API_KEY` **saiu**. Era `z.string().nonempty()`, ou seja, derrubava o boot de quem
+não a definisse, e a string não aparecia em nenhum outro arquivo do backend: nenhuma
+chamada, nenhum cliente, nenhum uso. Quando existir integração com IA, a variável volta
+junto com o código que a usa (seção 4).
 
 As demais têm default e só precisam ser informadas para sair do padrão local:
 
@@ -48,7 +51,7 @@ O arquivo de exemplo está em `back-end/.env.example`.
 | Serviço | Imagem | Portas | Para que |
 |---|---|---|---|
 | `postgres` | `postgis/postgis:15-3.4` | 5432 | banco principal com PostGIS |
-| `redis` | `redis:7-alpine` | 6379 | reservado (cache/fila ainda em memória) |
+| `redis` | `redis:7-alpine` | 6379 | reservado; o cache e o rate-limit ainda são em memória |
 | `minio` | `minio/minio` | 9000 (API), 9001 (console) | storage das evidências, volume `minio_data` |
 | `minio-bucket` | `minio/mc` | — | cria o bucket e libera leitura anônima na subida |
 | `mailpit` | `axllent/mailpit` | 1025 (SMTP), 8025 (web) | caixa de entrada local, volume `mailpit_data` |
@@ -80,12 +83,12 @@ Monolito modular por feature. Estrutura real do projeto:
 ```text
 src/
 ├── config/      # env, pool do banco, knexfile, migrations
-├── shared/      # primitivos: errors, auth, http, validate, cache, queue
+├── shared/      # primitivos: errors, auth, http, validate, cache, ratelimit, transacao
 ├── common/      # blocos reutilizáveis: auth/, imagens/, abilities.ts
-├── features/    # domínio: peticoes (as demais pastas ainda são placeholders)
+├── features/    # domínio: peticoes (única com código hoje)
 ├── scripts/     # operação manual fora da API (promoverAdmin)
 ├── routes/      # fios HTTP por feature (routes/<feature>/index.ts)
-└── workers/     # reservado para BullMQ (fase futura)
+└── tests/       # harness de integração (banco, fixtures, servidor, preparar)
 ```
 
 ### Regras
@@ -93,37 +96,26 @@ src/
 - `features/<feature>/`: regra de negócio em handlers funcionais (`handler.ts` + `.sql.ts`). Sem classes, sem DI, sem framework.
 - `common/`: building blocks transversais (auth, imagens, permissões). Não são features de domínio.
 - `shared/`: utilidades sem dependência de domínio.
-- Seams para evoluir sem reescrita: `shared/cache.ts` (interface `Cache` → `MemoryCache` hoje, Redis depois) e `shared/queue.ts` (interface `Queue` → `SyncQueue` hoje, BullMQ depois).
+- Seam para evoluir sem reescrita: `shared/cache.ts` (interface `Cache` → `MemoryCache` hoje, Redis depois). **`shared/queue.ts` foi removido**: a implementação era um `SyncQueue` cujo `enqueue` só fazia `console.warn('worker ausente')` e que **não era chamado de lugar nenhum**. Não era um seam, era um enfeite que sugeria processamento assíncrono inexistente. O M11, quando precisar de fila, cria a interface junto com o worker que a consome.
 - `shared/transacao.ts`: `emTransacao(fn)` pega um client do pool, roda `BEGIN`, entrega o `Executor` para o handler e faz `COMMIT`/`ROLLBACK`. As funções `.sql` que participam de transação recebem o executor como último parâmetro, com `dbPool` como default — quem não precisa de transação continua chamando igual.
 - `shared/storage.ts`: cliente MinIO (`enviarObjeto`, `removerObjeto`, `urlPublica`).
 - `shared/email.ts`: transporte nodemailer e a regra de destinatário seguro (seção 2.2).
-- Cross-feature leve: chama o `.sql` de outra feature. Cross-feature pesada: `queue.enqueue(...)`. Nenhuma feature importa o `routes/` de outra.
+- Cross-feature: chama o `.sql` ou o handler de outra feature. Nenhuma feature importa o `routes/` de outra.
+- `features/` hoje tem **só** `peticoes/`. As pastas `apoios/`, `eventos/`, `mutiroes/`, `niveis/`, `problemas/`, `regioes/` e `usuarios/` eram `.gitkeep` vazios: sugeriam um domínio que na verdade mora em `common/`. Foram removidas; a pasta volta quando houver código.
 
-## 4. Fluxo de integração com Google AI
+## 4. Integração com IA (não implementada)
 
-1. O frontend envia uma solicitação ao backend.
-2. O backend valida e autoriza a requisição.
-3. O backend chama a API do Google usando `GOOGLE_API_KEY`.
-4. O backend devolve o resultado ao cliente.
+**Não existe integração com IA no código.** Esta seção é intenção de produto, não
+descrição do que está lá.
 
-Use este padrão para:
-- gerar textos e resumos;
-- classificar problemas;
-- sugerir categorias ou respostas automáticas;
-- enriquecer notificações.
+O desenho previsto, para quando houver: o frontend chama o backend, o backend valida e
+autoriza, o backend chama o provedor e devolve o resultado — a chave nunca sai do
+servidor. Casos pensados: resumo de problema, classificação de causa, sugestão de
+categoria.
 
-### Exemplo de chamada
-
-```ts
-const response = await fetch('https://googleapis.com/v1/your-endpoint', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${env.GOOGLE_API_KEY}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({ prompt: '...' }),
-});
-```
+A variável `GOOGLE_API_KEY` foi removida do `env.ts` porque era obrigatória e sem uso:
+derrubava o boot de qualquer ambiente que não a definisse para alimentar código que não
+existe. Ela volta junto com a primeira chamada real.
 
 ## 5. Regras de autenticação e perfil
 
@@ -253,19 +245,19 @@ O módulo `problemas` é a espinha dorsal do mapa. Implementado em `features/pro
 
 - PostGIS obrigatório: o container do banco usa `postgis/postgis:15-3.4`; a migration `002` habilita `postgis` + `pgcrypto`.
 - `problemas.geom` é `geometry(Point, 4326)`, e a unidade do SRID 4326 é **grau**. Por isso toda comparação de distância faz cast para `geography`, onde o argumento é **metro**: `ST_DWithin(p.geom::geography, ST_SetSRID(ST_MakePoint($1,$2),4326)::geography, $3)`, e o mesmo cast no `ST_Distance` que alimenta o alias `distancia_m`. Vale para `findNearbyProblema` e `listarProblemas` — comparar em `geometry` fazia o raio valer graus (o `15` do dedupe eram ~1.665 km e o `5000` da listagem era um filtro no-op).
-- Índices: `idx_problemas_geom_geog` é índice de **expressão** sobre `(geom::geography)` (migration `010`), porque o planner não usa um GIST da coluna crua quando a consulta compara o valor com cast. O GIST antigo sobre `geom` foi removido: nenhuma consulta usa mais predicado espacial em `geometry`, e o que sobrou (`ST_X`/`ST_Y`) são acessores escalares que não usam índice. `idx_eventos_geom_geog` existiu até a remoção do domínio `eventos` (seção 12.3) e caiu junto com a tabela.
+- Índices: `idx_problemas_geom_geog` é índice de **expressão** sobre `(geom::geography)` (migration `010`), porque o planner não usa um GIST da coluna crua quando a consulta compara o valor com cast. O GIST antigo sobre `geom` foi removido: nenhuma consulta usa mais predicado espacial em `geometry`, e o que sobrou (`ST_X`/`ST_Y`) são acessores escalares que não usam índice. `idx_eventos_geom_geog` existiu até a remoção do domínio `eventos` (seção 12.4) e caiu junto com a tabela.
 - Coordenadas validadas contra o bbox do Brasil (lat −33.75..5.27, lng −73.99..−34.79).
 - `tipo` distingue `problema` | `ponto_positivo` | `cultural`; `status` segue o workflow `ativo → em_analise → encaminhado → resolvido / removido`.
 - `causas` fixas (Mobilidade, Infraestrutura, Poluição, Desmatamento, Cultura, Segurança, Saúde, Educação) + `tags` livres para filtro fino no mapa.
-- Contadores (`cont_apoios`, `cont_apoios_ponderados`, `cont_visualizacoes`): o apoio está em `common/apoios/`, idempotente via PK `(problema_id, usuario_id)` + `ON CONFLICT DO NOTHING` e ponderado pelo `peso_voto` do usuário. Inserção e contador são **um único statement** (`WITH novo AS (INSERT ...) UPDATE problemas ...`), dentro de `emTransacao` junto do evento — não há mais janela entre inserir a linha e mexer no contador. Rotas: `POST/DELETE /problemas/:id/apoios`.
+- Contadores (`cont_apoios`, `cont_apoios_ponderados`): o apoio está em `common/apoios/`, idempotente via PK `(problema_id, usuario_id)` + `ON CONFLICT DO NOTHING` e ponderado pelo `peso_voto` do usuário. Inserção e contador são **um único statement** (`WITH novo AS (INSERT ...) UPDATE problemas ...`), dentro de `emTransacao` junto do evento — não há mais janela entre inserir a linha e mexer no contador. Rotas: `POST/DELETE /problemas/:id/apoios`. Ver a seção 11.3 sobre o que cada contador significa (e o que saiu).
 - Cache: `listarProblemas` guarda 30 s em `shared/cache.ts` sob o prefixo `problemas:`. `invalidarCacheDeProblemas()` (`cache.deletePorPrefixo`) roda **depois do commit** em criar problema, alterar status, encaminhar, apoiar, desapoiar e vincular problema a evento.
 
 ### 11.1 Endpoints
 - `POST /problemas` (auth, rate-limit) — cria problema (título obrigatório, ≤10 tags, bbox Brasil). Responde `{ criado, problema }`: **201** quando criou e emitiu `PROBLEMA_CRIADO`, **200** quando encontrou um registro parecido no mesmo ponto e devolveu o existente. O cliente precisa olhar `criado` — o status HTTP sozinho não deve virar "publicado com sucesso".
 - `GET /problemas` — lista por proximidade (`lat`,`lng`,`raio` em metros) ou por peso; filtros `status`, `tipo` (`problema`|`ponto_positivo`|`cultural`), `escopo`, `causaId`, `tags` (array, operador `&&`). **`status` não tem default**: sem ele a listagem esconde apenas `removido`, para que encaminhar um problema não o faça sumir do mapa. Quem quiser só os ativos passa `status=ativo`.
-- `GET /problemas/estatisticas` — agregações por causa e por tipo (+ total), respeitando os filtros (mesma regra de `status`); alimenta filtros do mapa.
-- `GET /problemas/tendencias` — top por `cont_apoios_ponderados` (`limite`, default 10) + filtros.
-- `GET /problemas/:id` (público, auth opcional) — detalhe (incrementa `cont_visualizacoes`); com token devolve também `pode_encaminhar`, `pode_adicionar_evidencia` e `transicoes_permitidas`.
+- `GET /problemas/estatisticas` — agregações por causa e por tipo (+ total). Aceita **os mesmos filtros da listagem**, `lat`/`lng`/`raio` e `tags` inclusive.
+- `GET /problemas/tendencias` — top por `cont_apoios_ponderados`, com os mesmos filtros. O `limite` vem do `listarProblemasQuerySchema`, cujo default é **20**.
+- `GET /problemas/:id` (público, auth opcional) — detalhe; com token devolve também `pode_encaminhar`, `pode_adicionar_evidencia` e `transicoes_permitidas`.
 - `PATCH /problemas/:id/status` (auth) — muda o status; emite `STATUS_ALTERADO` e `RESOLVIDO`.
 - `GET /problemas/:id/eventos` (público) — histórico do problema (seção 14).
 - `POST/DELETE /problemas/:id/apoios` (auth) — apoio idempotente ponderado por `peso_voto`; emite `APOIO_CRIADO` / `APOIO_REMOVIDO`.
@@ -288,7 +280,15 @@ O módulo `problemas` é a espinha dorsal do mapa. Implementado em `features/pro
   Login e cadastro são as duas rotas anônimas, então a chave é o IP: sem elas não havia
   **nenhuma** proteção contra força bruta de senha nem contra criação de contas em
   massa.
-- **Denúncias**: tabela `problema_denuncias` com `UNIQUE (problema_id, usuario_id)`; `contarDenuncias` usa `COUNT(DISTINCT usuario_id)`. Alimenta moderação e o futuro escalonamento.
+- **Denúncias**: tabela `problema_denuncias` com `UNIQUE (problema_id, usuario_id)`; `contarDenuncias` usa `COUNT(DISTINCT usuario_id)`. Alimenta moderação e o futuro escalonamento. O índice `idx_denuncias_problema` (só `problema_id`) foi removido: virou redundante com o unique, cujo prefixo é a mesma coluna — o planner usa o unique para qualquer consulta que o antigo servia, e manter os dois custava escrita e disco à toa.
+
+### 11.3 Filtros das agregações, e o que cada contador significa
+
+- **`GET /problemas/estatisticas` e `/tendencias` ignoravam parte dos filtros que recebiam.** As rotas fazem `parse(listarProblemasQuerySchema, ...)`, que aceita `lat`, `lng`, `raio` e `tags`, e passavam o objeto inteiro para um `FiltroAgregacao` que só lia `status`, `tipo`, `escopo` e `causaId`. Compilava porque o *excess property check* do TypeScript não vale para variáveis, só para objetos literais. O efeito era que as agregações eram **globais**: o app pedia "quantos problemas ativos em 8 km" e recebia a contagem do país.
+- Hoje `listarProblemas`, as três agregações e `tendenciasProblemas` compartilham **um** construtor de filtro (`construirFiltro`), com a mesma cláusula `ST_DWithin(p.geom::geography, ..., raio)` da listagem. `FiltroProblemas` (sem paginação) e `ListarProblemasQuery` (com) são os dois tipos, e um estende o outro — não há mais como passar um filtro que o SQL silenciosamente descarta.
+- **Filtro por múltiplas tags estava quebrado ponta a ponta.** O mobile mandava `tags=a,b` (um `join(',')`) e o backend fazia `z.string().transform(v => [v])`, o que virava `['a,b']` e só casava com uma tag literalmente chamada `"a,b"`. Agora o app manda `tags` repetido (`tags=a&tags=b`, via `paramsSerializer: { indexes: null }` no axios) e o schema, além do array, também divide a string por vírgula — as duas codificações funcionam.
+- **`cont_visualizacoes` foi removido, coluna e escrita.** `incrementarVisualizacoes` rodava em **todo** `GET /problemas/:id`, que é rota pública: um F5 valia +1, sem dedupe, um `UPDATE` na linha mais quente da tabela a cada leitura — e **o número nunca era lido por ninguém**, nem no backend, nem no app. Era custo de escrita e contenção puros em troca de nada. Parar de escrever e manter a coluna deixaria um número congelado e mentiroso viajando no payload; por isso a coluna saiu junto (migration `20260904_015`, com `down` que a recria zerada).
+- **`cont_apoios_ponderados` ficou como está.** Hoje ele é idêntico a `cont_apoios`, porque `peso_voto` é literal `1` para todo mundo e nunca sofre `UPDATE`. Mas ele é o `ORDER BY` primário de `listarProblemas` e de `tendenciasProblemas`, e o M10 (níveis de engajamento) existe justamente para dar peso diferente ao voto. Remover agora seria desfazer o gancho da funcionalidade seguinte.
 
 ## 12. Módulo mobilizações (e a remoção do domínio eventos)
 
@@ -305,9 +305,10 @@ exposto em `routes/mobilizacoes/`.
 
 ### 12.1 Endpoints
 - `POST /mobilizacoes` (auth) — cria a mobilização e emite `MOBILIZACAO_CRIADA`.
-- `GET /mobilizacoes?problemaId=` — lista as mobilizações de um problema.
-- `GET /mobilizacoes/:id` (público, auth opcional) — detalhe com `cont_participantes` e
-  `pode_gerenciar`.
+- `GET /mobilizacoes?problemaId=` (público, auth opcional) — lista as mobilizações de um
+  problema, cada uma com o mesmo contrato do detalhe.
+- `GET /mobilizacoes/:id` (público, auth opcional) — detalhe com `cont_participantes`,
+  `usuario_participa` e `pode_gerenciar`.
 - `PATCH /mobilizacoes/:id` (auth) — edita os dados.
 - `PATCH /mobilizacoes/:id/status` (auth) — muda o status pela tabela de transições.
 - `POST /mobilizacoes/:id/resultado` (auth) — registra o resultado.
@@ -329,7 +330,26 @@ registrar resultado a partir de `agendada` ou `cancelada` responde 400. Registra
 resultado numa mobilização **já** `realizada` continua permitido (é preencher o relato,
 não mudar de estado) e não reemite `MOBILIZACAO_REALIZADA`.
 
-### 12.3 O domínio `eventos` foi removido
+### 12.3 O contrato que o payload devolve
+
+Toda leitura de mobilização — `POST /mobilizacoes`, `GET /mobilizacoes`,
+`GET /mobilizacoes/:id`, `PATCH /:id`, `PATCH /:id/status` e `POST /:id/resultado` —
+devolve a mesma forma: as colunas da tabela mais `lat`/`lng`, `cont_participantes`,
+`usuario_participa` e `pode_gerenciar`.
+
+- **`usuario_participa` não existia.** O tipo do mobile declarava o campo, o backend
+  nunca o devolvia, e o `MobilizacaoDetailScreen` lia `undefined`: o botão dizia
+  "Participar" para sempre, inclusive para quem já estava inscrito, e "Sair" era
+  inalcançável. Agora é um `EXISTS` correlacionado na própria consulta, com o id do
+  usuário do token (`null` para anônimo, o que dá `false`).
+- **`cont_participantes` sumia na listagem.** `comContadores` era aplicado em seis
+  handlers, menos em `listarMobilizacoes`, que devolvia `result.rows` cru — o
+  `MobilizacaoCard` mostrava `0` para todo mundo. Agora o contador é uma subconsulta na
+  mesma query da listagem: uma ida ao banco, não uma por linha.
+- As mutações releem a mobilização depois do commit em vez de devolver o `RETURNING *`,
+  para que quem chamou receba o contrato inteiro e não uma versão parcial.
+
+### 12.4 O domínio `eventos` foi removido
 
 `common/eventos/`, `routes/eventos/` e as tabelas `eventos`, `evento_problema` e
 `evento_participantes` saíram do projeto (migration `20260904_014_remove_eventos`, com

@@ -37,27 +37,49 @@ export async function insertMobilizacao(
   return result.rows[0];
 }
 
-export async function listarMobilizacoes(query: ListarMobilizacoesQuery): Promise<Mobilizacao[]> {
+const CONTAGEM_DE_PARTICIPANTES = `
+       (SELECT COUNT(*)::int
+          FROM mobilizacao_participantes p
+         WHERE p.mobilizacao_id = m.id) AS cont_participantes`;
+
+function participacaoDoUsuario(indice: number): string {
+  return `
+       EXISTS (SELECT 1
+                 FROM mobilizacao_participantes p
+                WHERE p.mobilizacao_id = m.id AND p.usuario_id = $${indice}) AS usuario_participa`;
+}
+
+export async function listarMobilizacoes(
+  query: ListarMobilizacoesQuery,
+  usuarioId?: number,
+): Promise<Mobilizacao[]> {
   const limit = query.limite ?? 20;
   const offset = ((query.pagina ?? 1) - 1) * limit;
 
   const result = await dbPool.query(
-    `SELECT m.*, ST_X(m.geom) AS lng, ST_Y(m.geom) AS lat
+    `SELECT m.*, ST_X(m.geom) AS lng, ST_Y(m.geom) AS lat,
+${CONTAGEM_DE_PARTICIPANTES},
+${participacaoDoUsuario(4)}
      FROM mobilizacoes m
      WHERE m.problema_id = $1
      ORDER BY m.data_inicio ASC
      LIMIT $2 OFFSET $3`,
-    [query.problemaId, limit, offset],
+    [query.problemaId, limit, offset, usuarioId ?? null],
   );
   return result.rows;
 }
 
-export async function getMobilizacaoById(id: number): Promise<Mobilizacao | null> {
+export async function getMobilizacaoById(
+  id: number,
+  usuarioId?: number,
+): Promise<Mobilizacao | null> {
   const result = await dbPool.query(
-    `SELECT m.*, ST_X(m.geom) AS lng, ST_Y(m.geom) AS lat
+    `SELECT m.*, ST_X(m.geom) AS lng, ST_Y(m.geom) AS lat,
+${CONTAGEM_DE_PARTICIPANTES},
+${participacaoDoUsuario(2)}
      FROM mobilizacoes m
      WHERE m.id = $1`,
-    [id],
+    [id, usuarioId ?? null],
   );
   return result.rows[0] ?? null;
 }

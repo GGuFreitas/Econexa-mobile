@@ -6,12 +6,11 @@ import { typography } from '@shared/theme/typography';
 
 interface PertoDeVoceProps {
   total: number;
-  mobilizando: number;
+  raioKm: number;
 }
 
-export function PertoDeVoce({ total, mobilizando }: PertoDeVoceProps) {
+export function PertoDeVoce({ total, raioKm }: PertoDeVoceProps) {
   const theme = useAppTheme();
-  const raioKm = 8;
 
   return (
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
@@ -22,15 +21,6 @@ export function PertoDeVoce({ total, mobilizando }: PertoDeVoceProps) {
       <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
         em {raioKm}km
       </Text>
-      {mobilizando > 0 && (
-        <>
-          <View style={styles.divider} />
-          <MaterialCommunityIcons name="account-group" size={16} color={theme.colors.secondary} />
-          <Text style={[styles.mobilizando, { color: theme.colors.secondary }]}>
-            {mobilizando} mobilizando
-          </Text>
-        </>
-      )}
     </View>
   );
 }
@@ -52,5 +42,4 @@ const styles = StyleSheet.create({
   divider: { width: 1, height: 20, backgroundColor: '#E2E6EC' },
   metric: { fontSize: typography.fontSize.lg, fontWeight: '800' },
   metricLabel: { fontSize: typography.fontSize.xs },
-  mobilizando: { fontSize: typography.fontSize.xs, fontWeight: '700' },
 });

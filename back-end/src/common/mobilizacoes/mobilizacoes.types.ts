@@ -17,11 +17,13 @@ export interface Mobilizacao {
   criado_em: string;
   atualizado_em: string;
   cont_participantes?: number;
+  usuario_participa?: boolean;
   pode_gerenciar?: boolean;
 }
 
 export interface CriarMobilizacaoInput {
   usuarioId: number;
+  role: string;
   problemaId: number;
   titulo: string;
   descricao?: string;

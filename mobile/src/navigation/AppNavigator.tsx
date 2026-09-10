@@ -2,6 +2,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthGuard } from '@navigation/AuthGuard';
+import RegisterScreen from '@features/auth/screens/RegisterScreen';
 import HomeScreen from '@features/home/screens/HomeScreen';
 import { CriarProblemaScreen } from '@features/problemas/screens/CriarProblemaScreen';
 import { DetalheProblemaScreen } from '@features/problemas/screens/DetalheProblemaScreen';
@@ -12,6 +13,7 @@ import { MobilizacaoDetailScreen } from '@features/mobilizations/screens/Mobiliz
 
 export type RootStackParamList = {
   Main: undefined;
+  Cadastro: undefined;
   CriarProblema: undefined;
   DetalheProblema: { id: number };
   CriarMobilizacao: { problemaId: number };
@@ -29,7 +31,14 @@ const Tab = createBottomTabNavigator<TabParamList>();
 function MapaStack() {
   return (
     <Tab.Navigator screenOptions={{ headerShown: false }}>
-      <Tab.Screen name="Mapa">
+      <Tab.Screen
+        name="Mapa"
+        options={{
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="map-marker-radius" color={color} size={size} />
+          ),
+        }}
+      >
         {() => (
           <AuthGuard>
             <HomeScreen />
@@ -112,6 +121,7 @@ export default function AppNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Main" component={MapaStack} />
+      <Stack.Screen name="Cadastro" component={RegisterScreen} />
       <Stack.Screen name="CriarProblema" component={CriarGuarded} />
       <Stack.Screen name="DetalheProblema" component={DetalheGuarded} />
       <Stack.Screen name="CriarMobilizacao" component={CriarMobilizacaoGuarded} />

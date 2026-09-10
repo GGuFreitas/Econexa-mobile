@@ -86,7 +86,6 @@ services:
       DATABASE_URL: postgresql://admin:senha_secreta@postgres:5432/mutira_db
       CORS_ORIGINS: http://localhost:19006,http://localhost:3000
       JWT_SECRET: changeme_super_secret_key_123
-      GOOGLE_API_KEY: dev-google-key
       APP_PUBLIC_URL: http://localhost:19006
       MINIO_ENDPOINT: minio
       MINIO_PORT: 9000
