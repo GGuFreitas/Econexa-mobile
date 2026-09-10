@@ -6,6 +6,11 @@ vi.mock('@config/database.js', () => ({
   dbPool: { query: vi.fn() },
 }));
 
+vi.mock('@shared/transacao.js', async () => {
+  const { dbPool: pool } = await import('@config/database.js');
+  return { emTransacao: (fn: (executor: unknown) => unknown) => fn(pool) };
+});
+
 const mockQuery = dbPool.query as unknown as ReturnType<typeof vi.fn>;
 
 describe('comentarios handlers', () => {
@@ -68,18 +73,21 @@ describe('comentarios handlers', () => {
   });
 
   it('cria comentário para problema existente removendo espaços das pontas', async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: 1 }] }).mockResolvedValueOnce({
-      rows: [
-        {
-          id: 20,
-          problema_id: 1,
-          usuario_id: 3,
-          conteudo: 'Passei lá hoje.',
-          criado_em: 'x',
-          autor_nome: 'Ana',
-        },
-      ],
-    });
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 20,
+            problema_id: 1,
+            usuario_id: 3,
+            conteudo: 'Passei lá hoje.',
+            criado_em: 'x',
+            autor_nome: 'Ana',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 40 }] });
 
     const comentario = await criarComentario({
       problemaId: 1,
@@ -91,6 +99,34 @@ describe('comentarios handlers', () => {
     expect(comentario.pode_excluir).toBe(true);
     expect(mockQuery.mock.calls[1][0]).toContain('INSERT INTO problema_comentarios');
     expect(mockQuery.mock.calls[1][1]).toEqual([1, 3, 'Passei lá hoje.']);
+  });
+
+  it('registra COMENTARIO_CRIADO na mesma transação do comentário', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
+      .mockResolvedValueOnce({
+        rows: [
+          {
+            id: 20,
+            problema_id: 1,
+            usuario_id: 3,
+            conteudo: 'Passei lá hoje.',
+            criado_em: 'x',
+            autor_nome: 'Ana',
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ rows: [{ id: 40 }] });
+
+    await criarComentario({ problemaId: 1, usuarioId: 3, conteudo: 'Passei lá hoje.' });
+
+    expect(mockQuery.mock.calls[2][0]).toContain('INSERT INTO problema_eventos');
+    expect(mockQuery.mock.calls[2][1]).toEqual([
+      1,
+      'COMENTARIO_CRIADO',
+      3,
+      JSON.stringify({ comentario_id: 20, trecho: 'Passei lá hoje.' }),
+    ]);
   });
 
   it('rejeita comentário vazio antes de tocar no banco', async () => {

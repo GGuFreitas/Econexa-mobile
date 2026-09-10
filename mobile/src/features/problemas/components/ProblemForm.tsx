@@ -11,7 +11,6 @@ import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
 import { causaList } from '../map/markerConfig';
-import { uploadImagemProblema } from '../api/imagens';
 import type { CriarProblemaPayload, UploadFileInput } from '../types';
 
 const schema = z.object({
@@ -25,14 +24,19 @@ const schema = z.object({
 
 interface ProblemFormProps {
   coordenada: { latitude: number; longitude: number };
-  onSubmit: (payload: CriarProblemaPayload) => void;
+  onSubmit: (payload: CriarProblemaPayload, evidencia: UploadFileInput | null) => void;
   submitting: boolean;
+  progressoUpload: number | null;
 }
 
-export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormProps) {
+export function ProblemForm({
+  coordenada,
+  onSubmit,
+  submitting,
+  progressoUpload,
+}: ProblemFormProps) {
   const theme = useAppTheme();
   const [foto, setFoto] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
 
   const { control, handleSubmit, formState } = useForm<z.infer<typeof schema>>({
     resolver: zodResolver(schema),
@@ -65,48 +69,27 @@ export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormPro
     setFoto(manipulado.uri);
   };
 
-  const uploadFoto = async (): Promise<string | null> => {
-    if (!foto) return null;
-    setUploadProgress(0);
-    try {
-      const file: UploadFileInput = {
-        uri: foto,
-        name: `problema-${Date.now()}.jpg`,
-        type: 'image/jpeg',
-      };
-      const { url } = await uploadImagemProblema(0, { uri: foto, name: `problema-${Date.now()}.jpg`, type: 'image/jpeg' }, (p) => setUploadProgress(p));
-      setUploadProgress(null);
-      return url;
-    } catch (e) {
-      setUploadProgress(null);
-      Alert.alert('Erro no upload', 'Não foi possível enviar a imagem. Tente novamente.');
-      return null;
-    }
+  const submit = (data: z.infer<typeof schema>) => {
+    const evidencia: UploadFileInput | null = foto
+      ? { uri: foto, name: `problema-${Date.now()}.jpg`, type: 'image/jpeg' }
+      : null;
+
+    onSubmit(
+      {
+        titulo: data.titulo,
+        descricao: data.descricao || undefined,
+        causaId: data.causaId,
+        tipo: data.tipo,
+        escopo: data.escopo,
+        localNome: data.localNome || undefined,
+        lat: coordenada.latitude,
+        lng: coordenada.longitude,
+      },
+      evidencia,
+    );
   };
 
-  const submit = async (data: z.infer<typeof schema>) => {
-    let imagemUrl: string | null = null;
-    if (foto) {
-      const url = await uploadFoto();
-      if (!url) return;
-      imagemUrl = url;
-    }
-
-    onSubmit({
-      titulo: data.titulo,
-      descricao: data.descricao || undefined,
-      causaId: data.causaId,
-      tipo: data.tipo,
-      escopo: data.escopo,
-      localNome: data.localNome || undefined,
-      lat: coordenada.latitude,
-      lng: coordenada.longitude,
-      imagens: imagemUrl ? [imagemUrl] : undefined,
-    });
-  };
-
-  const isUploading = uploadProgress !== null;
-  const buttonLoading = submitting || isUploading;
+  const enviandoImagem = progressoUpload !== null;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -207,7 +190,7 @@ export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormPro
           mode="outlined"
           icon="camera"
           onPress={selecionarFoto}
-          disabled={isUploading}
+          disabled={submitting}
           style={{ alignSelf: 'flex-start' }}
         >
           {foto ? 'Trocar foto' : 'Adicionar foto'}
@@ -223,9 +206,9 @@ export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormPro
             />
           </View>
         )}
-        {isUploading && (
+        {enviandoImagem && (
           <Text style={[styles.uploadProgress, { color: theme.colors.primary }]}>
-            Enviando imagem... {uploadProgress}%
+            Enviando imagem... {progressoUpload}%
           </Text>
         )}
         <Text style={[styles.dica, { color: theme.colors.textSecondary }]}>
@@ -236,10 +219,11 @@ export function ProblemForm({ coordenada, onSubmit, submitting }: ProblemFormPro
       <Button
         mode="contained"
         onPress={handleSubmit(submit)}
-        loading={buttonLoading}
+        loading={submitting}
+        disabled={submitting}
         style={styles.submit}
       >
-        {isUploading ? 'Enviando imagem...' : 'Publicar'}
+        {enviandoImagem ? 'Enviando imagem...' : 'Publicar'}
       </Button>
     </ScrollView>
   );

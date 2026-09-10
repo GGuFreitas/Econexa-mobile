@@ -8,6 +8,7 @@ export function useCriarMobilizacao() {
     mutationFn: (input: CriarMobilizacaoInput) => criarMobilizacao(input),
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['mobilizacoes', { problemaId: data.problema_id }] });
+      qc.invalidateQueries({ queryKey: ['eventos', data.problema_id] });
     },
   });
 }

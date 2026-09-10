@@ -1,7 +1,7 @@
 import { api } from '@services/api';
-import type { Problema } from '../types';
+import type { ProblemaDetalhe } from '../types';
 
-export async function buscarProblema(id: number): Promise<Problema> {
-  const response = await api.get<Problema>(`/problemas/${id}`);
+export async function buscarProblema(id: number): Promise<ProblemaDetalhe> {
+  const response = await api.get<ProblemaDetalhe>(`/problemas/${id}`);
   return response.data;
 }

@@ -1,15 +1,26 @@
 import { dbPool } from '@config/database.js';
+import type { Executor } from '@shared/transacao.js';
 import type {
   CriarProblemaInput,
   ListarProblemasQuery,
   Problema,
+  ProblemaStatus,
 } from './problemas.types.js';
 
-export async function insertProblema(input: CriarProblemaInput): Promise<Problema> {
-  const result = await dbPool.query(
+export const RAIO_LISTAGEM_METROS = 5000;
+
+function pontoGeografia(lngIdx: number, latIdx: number): string {
+  return `ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)::geography`;
+}
+
+export async function insertProblema(
+  input: CriarProblemaInput,
+  executor: Executor = dbPool,
+): Promise<Problema> {
+  const result = await executor.query(
     `INSERT INTO problemas (usuario_id, titulo, descricao, causa_id, tags, tipo, geom, local_nome, escopo)
      VALUES ($1, $2, $3, $4, $5, $6, ST_SetSRID(ST_MakePoint($7, $8), 4326), $9, $10)
-     RETURNING *`,
+     RETURNING *, ST_X(geom) AS lng, ST_Y(geom) AS lat`,
     [
       input.usuarioId,
       input.titulo,
@@ -34,6 +45,8 @@ export async function listarProblemas(query: ListarProblemasQuery): Promise<Prob
   if (query.status) {
     params.push(query.status);
     conditions.push(`p.status = $${params.length}`);
+  } else {
+    conditions.push(`p.status <> 'removido'`);
   }
   if (query.tipo) {
     params.push(query.tipo);
@@ -54,14 +67,11 @@ export async function listarProblemas(query: ListarProblemasQuery): Promise<Prob
 
   let geoPointExpr = '';
   if (hasPoint) {
-    params.push(query.lng, query.lat, query.raio ?? 5000);
-    const lngIdx = params.length - 2;
-    const latIdx = params.length - 1;
+    params.push(query.lng, query.lat, query.raio ?? RAIO_LISTAGEM_METROS);
+    const ponto = pontoGeografia(params.length - 2, params.length - 1);
     const raioIdx = params.length;
-    conditions.push(
-      `ST_DWithin(p.geom, ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326), $${raioIdx})`,
-    );
-    geoPointExpr = `, ST_Distance(p.geom, ST_SetSRID(ST_MakePoint($${lngIdx}, $${latIdx}), 4326)) AS distancia_m`;
+    conditions.push(`ST_DWithin(p.geom::geography, ${ponto}, $${raioIdx})`);
+    geoPointExpr = `, ST_Distance(p.geom::geography, ${ponto}) AS distancia_m`;
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
@@ -103,15 +113,33 @@ export async function findNearbyProblema(
   causaId: number,
   tipo: string,
 ): Promise<Problema | null> {
+  const ponto = pontoGeografia(1, 2);
   const result = await dbPool.query(
-    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat
+    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat,
+            ST_Distance(p.geom::geography, ${ponto}) AS distancia_m
      FROM problemas p
      WHERE p.causa_id = $4 AND p.tipo = $5
-       AND ST_DWithin(p.geom, ST_SetSRID(ST_MakePoint($1, $2), 4326), $3)
+       AND p.status NOT IN ('removido', 'resolvido')
+       AND ST_DWithin(p.geom::geography, ${ponto}, $3)
+     ORDER BY distancia_m ASC, p.id ASC
      LIMIT 1`,
     [lng, lat, raioMetros, causaId, tipo],
   );
   return result.rows[0] ?? null;
+}
+
+export async function atualizarStatus(
+  id: number,
+  status: ProblemaStatus,
+  executor: Executor = dbPool,
+): Promise<Problema> {
+  const result = await executor.query(
+    `UPDATE problemas SET status = $2, atualizado_em = now()
+     WHERE id = $1
+     RETURNING *, ST_X(geom) AS lng, ST_Y(geom) AS lat`,
+    [id, status],
+  );
+  return result.rows[0];
 }
 
 export async function incrementarVisualizacoes(id: number): Promise<void> {
@@ -134,6 +162,8 @@ function buildWhere(query: FiltroAgregacao): { clause: string; params: unknown[]
   if (query.status) {
     params.push(query.status);
     conditions.push(`status = $${params.length}`);
+  } else {
+    conditions.push(`status <> 'removido'`);
   }
   if (query.tipo) {
     params.push(query.tipo);

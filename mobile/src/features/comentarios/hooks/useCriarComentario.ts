@@ -8,6 +8,7 @@ export function useCriarComentario(problemaId: number) {
     mutationFn: (conteudo: string) => criarComentario({ problemaId, conteudo }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['comentarios', problemaId] });
+      qc.invalidateQueries({ queryKey: ['eventos', problemaId] });
     },
   });
 }

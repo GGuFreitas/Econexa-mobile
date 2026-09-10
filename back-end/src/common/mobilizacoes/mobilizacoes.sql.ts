@@ -1,4 +1,5 @@
 import { dbPool } from '@config/database.js';
+import type { Executor } from '@shared/transacao.js';
 import type {
   AtualizarMobilizacaoInput,
   CriarMobilizacaoInput,
@@ -13,8 +14,11 @@ export async function problemaExiste(problemaId: number): Promise<boolean> {
   return result.rows.length > 0;
 }
 
-export async function insertMobilizacao(input: CriarMobilizacaoInput): Promise<Mobilizacao> {
-  const result = await dbPool.query(
+export async function insertMobilizacao(
+  input: CriarMobilizacaoInput,
+  executor: Executor = dbPool,
+): Promise<Mobilizacao> {
+  const result = await executor.query(
     `INSERT INTO mobilizacoes (problema_id, usuario_id, titulo, descricao, data_inicio, data_fim, local_nome, geom)
      VALUES ($1, $2, $3, $4, $5, $6, $7, ST_SetSRID(ST_MakePoint($8, $9), 4326))
      RETURNING *`,
@@ -99,8 +103,12 @@ export async function updateMobilizacao(
   return result.rows[0];
 }
 
-export async function updateStatus(id: number, status: MobilizacaoStatus): Promise<Mobilizacao> {
-  const result = await dbPool.query(
+export async function updateStatus(
+  id: number,
+  status: MobilizacaoStatus,
+  executor: Executor = dbPool,
+): Promise<Mobilizacao> {
+  const result = await executor.query(
     `UPDATE mobilizacoes SET status = $1, atualizado_em = now() WHERE id = $2 RETURNING *`,
     [status, id],
   );
@@ -110,8 +118,9 @@ export async function updateStatus(id: number, status: MobilizacaoStatus): Promi
 export async function registrarResultado(
   id: number,
   input: ResultadoMobilizacaoInput,
+  executor: Executor = dbPool,
 ): Promise<Mobilizacao> {
-  const result = await dbPool.query(
+  const result = await executor.query(
     `UPDATE mobilizacoes
      SET resultado_descricao = $1, resultado_metricas = $2, status = 'realizada', atualizado_em = now()
      WHERE id = $3

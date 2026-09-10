@@ -1,6 +1,7 @@
 # Etapas implementadas
 
-Registro simples de cada PR entregue no mobile. Commits granulares por PR.
+Roadmap consolidado do Mutira, de M1 a M12. Cada entrada registra o que entrou,
+o que ficou de fora e as dívidas assumidas. Commits granulares por PR.
 
 ## PR-M1 — Fundação (já no master)
 
@@ -40,12 +41,6 @@ Telas de auth (Login/Registro) funcionando contra o backend.
 - `HomeScreen` renderiza o Mapa Vivo.
 - Deps: react-native-maps + expo-location. `expo-doctor` 21/21; typecheck/lint/test verdes.
 
-## Próximas
-
-- **PR-M4** — Criar problema (form + foto via expo-image-picker/manipulator) +
-  Mobilização (apoiar, denunciar) funcional no mapa/bottom sheet.
-- **PR-M5** — Feed/Perfil/Impacto + navegação em tabs (Mapa/Feed/Perfil).
-
 ## PR-M4 — Criar problema + Mobilização
 
 - `types.ts`: `CriarProblemaPayload` (camelCase p/ backend), `ApoioResultado`,
@@ -74,9 +69,11 @@ Telas de auth (Login/Registro) funcionando contra o backend.
 - `components/ProblemForm`: foto via expo-image-picker/manipulator com barra de progresso.
 - `screens/CriarProblemaScreen`: fluxo two-step (cria o problema e depois associa a imagem).
 - `eslint.config.mjs`: global `FormData` para o multipart.
-- Nota: o backend expõe `POST /imagens` com JSON (`url`), não um endpoint multipart;
-  o mobile chama `/imagens/upload/problema/:id`, que **não existe**. A associação
-  da imagem ficou pendente de backend.
+- **Dívida assumida na entrega:** o backend expõe `POST /imagens` com JSON (`url`),
+  não um endpoint multipart; o mobile chamava `/imagens/upload/problema/:id`, que
+  **não existia**. O upload aparecia pronto na UI e nunca funcionou: `ProblemForm`
+  chamava o upload com `problemaId = 0` e `CriarProblemaScreen` apenas dava
+  `console.log` na URL da imagem. **Dívida quitada no M8.6.**
 
 ## PR-M7 — Mobilizações (#9)
 
@@ -113,7 +110,403 @@ Telas de auth (Login/Registro) funcionando contra o backend.
 - Lacuna assumida: **não existe** tabela/endpoint de eventos ou atividade no backend, e
   `POST/DELETE /problemas/:id/apoios` não expõem quem apoiou nem quando. Portanto
   "fulano apoiou o problema" **ficou fora** da timeline. Nada de sistema genérico de
-  eventos foi criado neste PR.
+  eventos foi criado neste PR. **Resolvido no M8.5** (menos o apoio, que continua sem
+  evento porque o backend não guarda o instante do apoio).
 - Lacuna assumida: `users` não tem coluna de avatar, então o comentário mostra apenas
   nome do autor + data relativa.
 
+## PR-M8.5 — Eventos do problema e timeline real
+
+- Backend: migration `20260903_008_create_problema_eventos` cria `problema_eventos`
+  (`id`, `problema_id`, `tipo`, `usuario_id` nulo, `dados` jsonb, `criado_em`) com
+  índice `(problema_id, criado_em DESC, id DESC)`, FK `ON DELETE CASCADE` para
+  `problemas`, `ON DELETE SET NULL` para `users` e CHECK do conjunto de tipos.
+  Histórico **append-only**: sem update, sem delete, sem escrita pelo mobile.
+- **Backfill na própria migration**: `PROBLEMA_CRIADO` a partir de `problemas`,
+  `EVIDENCIA_ADICIONADA` das `imagens` de `tipo_entidade = 'problema'`,
+  `COMENTARIO_CRIADO` de `problema_comentarios`, `MOBILIZACAO_CRIADA` e
+  `MOBILIZACAO_REALIZADA` de `mobilizacoes`. Problemas antigos não ficam com
+  timeline vazia. Eventos antigos de evidência ficam sem ator (`usuario_id` nulo),
+  porque a tabela `imagens` não guarda quem enviou.
+- Backend: módulo `common/problemaEventos/` (types, sql, handler, schemas) e
+  `shared/transacao.ts` (`emTransacao`, um client do pool com BEGIN/COMMIT/ROLLBACK).
+  Não há event bus, CQRS nem fila: é uma tabela histórica e um helper de escrita.
+- Consistência transacional: o evento é gravado no mesmo `BEGIN` da operação que o
+  originou (criar problema, criar comentário, criar mobilização, concluir mobilização,
+  subir evidência, encaminhar, registrar resposta e alterar status).
+- Endpoint novo: `GET /problemas/:id/eventos` (público, `pagina`/`limite` até 50,
+  ordenado pelo backend do mais recente para o mais antigo). **Não existe** endpoint
+  público de escrita de evento.
+- Mobile: `api/listarEventos.ts`, `utils/eventos.ts` (`apresentarEvento`, pura),
+  `hooks/useTimeline` reescrito sobre `useQuery(['eventos', problemaId])` e
+  `components/EventoItem` (representação discriminada por tipo, sem regra no JSX).
+- Mobile: removidos `utils/timeline.ts` e o `useTimeline` que compunha quatro
+  queries. `useImagensProblema` continua, agora servindo a galeria de evidências.
+- Invalidação de `['eventos', problemaId]` em criar comentário, criar mobilização,
+  concluir mobilização, subir evidência, encaminhar, registrar resposta e alterar
+  status. Sem polling, sem websocket, sem tempo real.
+- Evento que o backend não emite não aparece no app: nada de deduzir apoio por
+  variação de contador.
+
+## PR-M8.6 — Contrato real de imagens (upload via MinIO)
+
+- `docker-compose.yml`: serviços `minio` (volume `minio_data`, credenciais por
+  variável de ambiente, healthcheck) e `minio-bucket` (cria o bucket e libera
+  leitura anônima na subida).
+- Backend: `@fastify/multipart` + cliente `minio`; `shared/storage.ts`
+  (`enviarObjeto`, `removerObjeto`, `urlPublica`).
+- Endpoint novo: `POST /imagens/upload/problema/:problemaId` (auth, multipart,
+  campo `file`) — **exatamente o caminho que o mobile já chamava desde o M6**, agora
+  existente dos dois lados.
+- Validação no servidor: MIME em `image/jpeg|image/png|image/webp`, limite de 5 MB
+  (no `@fastify/multipart` e na checagem de truncamento) e conferência da assinatura
+  do arquivo. PDF renomeado para `.jpg` é recusado com 415.
+- Autorização real: só o autor do problema ou quem tem `problemas:moderate` sobe
+  evidência; qualquer outro recebe 403 antes de o arquivo tocar o storage.
+- A imagem é registrada reaproveitando o módulo `imagens` e emite
+  `EVIDENCIA_ADICIONADA` na mesma transação; se a persistência falha, o objeto é
+  removido do MinIO.
+- Mobile: `api/imagens.ts` passa a devolver o registro da imagem,
+  `uploadFile` virou genérico, `ProblemForm` deixa de fazer upload (entrega o arquivo
+  escolhido para a tela) e `CriarProblemaScreen` cria o problema e então sobe a
+  evidência, com progresso e aviso quando o upload falha.
+- Mobile: `components/EvidenciasProblema` mostra a galeria e permite adicionar
+  evidência a quem o servidor autoriza.
+- Fecha a dívida registrada no M6.
+
+## PR-M9 — Encaminhamento institucional
+
+- Backend: migration `20260903_009_create_encaminhamentos` cria `orgaos`
+  (`nome`, `email`, `esfera`, `tipo`, `ativo`) e `problema_encaminhamentos`
+  (`problema_id`, `orgao_id`, `usuario_id`, `referencia`, `assunto`, `mensagem`,
+  `status`, `enviado_em`, `protocolo`, `resposta`, `respondido_em`).
+- Seed de órgãos **marcado como exemplo**: todos os nomes começam com `[EXEMPLO]` e
+  os e-mails usam o domínio reservado `exemplo.invalid`, que não resolve.
+- `features/peticoes/peticoes.ts`: `gerarPeticao` (pura) monta referência
+  (`MUTIRA-Pnnnnnn`), assunto e corpo com os dados do problema e o link público.
+  A pasta `features/peticoes/` deixou de ser um `.gitkeep` vazio.
+- Backend: módulo `common/encaminhamentos/` (types, schemas, sql, handler).
+- Endpoints novos: `GET /orgaos` (auth), `GET/POST /problemas/:id/encaminhamentos`
+  (auth, POST com rate-limit de 3/min) e
+  `POST /problemas/:id/encaminhamentos/:encaminhamentoId/resposta` (auth).
+- Status do problema: `PATCH /problemas/:id/status` com o fluxo
+  `ativo → em_analise → encaminhado → resolvido` (+ `removido`), emitindo
+  `STATUS_ALTERADO` e, no destino final, `RESOLVIDO`. **Quem pode alterar:** o autor
+  do problema ou quem tem `problemas:moderate`; `removido` é exclusivo da moderação.
+  Criar encaminhamento leva o problema para `encaminhado` pelo mesmo caminho.
+- `GET /problemas/:id` passou a usar `optionalAuth` e devolve `pode_encaminhar` e
+  `transicoes_permitidas` calculados no servidor — o app só oferece o que a API
+  autoriza.
+- **Nenhum e-mail real sai:** `docker-compose.yml` ganhou o **Mailpit**, o transporte
+  aponta para ele por variável de ambiente e `shared/email.ts` desvia **toda**
+  mensagem para `SMTP_DEV_INBOX` a menos que `NODE_ENV=production` **e**
+  `SMTP_ALLOW_EXTERNAL=true`. O corpo desviado carrega o destinatário original.
+  Nos testes não há envio de rede.
+- Mobile: feature `features/encaminhamentos/` (types, api, hooks, components) com
+  `EncaminharProblemaModal` (seleção de órgão + confirmação antes de enviar),
+  `EncaminhamentosList`, `EncaminhamentoCard` e `RegistrarRespostaModal`.
+- Mobile: `DetalheProblemaScreen` ganhou "Encaminhar problema", "Alterar status",
+  a galeria de evidências e a lista de encaminhamentos, todos com loading, vazio,
+  erro, ação em andamento e confirmação antes de ação irreversível. O badge fixo
+  `0` da aba de mobilizações saiu: `0` não é fallback de dado não carregado.
+
+### Correções de bugs pré-existentes encontrados durante o M8.5/M8.6/M9
+
+- `rateLimitGuard` (`routes/problemas/index.ts`) era uma função **síncrona** de
+  aridade 1 usada como `preHandler`: o Fastify esperava o `next` que nunca era
+  chamado, então **toda rota com rate-limit ficava pendurada sem responder** —
+  `POST /problemas`, `POST /problemas/:id/denuncias` e o `POST` de comentários do M8.
+  Agora é assíncrona.
+- `knexfile.ts` apontava as migrations para `./src/config/migrations` e carregava o
+  `.env` do diretório corrente, mas o knex CLI muda o diretório para a pasta do
+  knexfile: `npm run migrate` falhava com `ENOENT` e, depois, sem senha. Passou a
+  resolver os dois caminhos a partir do próprio arquivo.
+- `pino-pretty` era usado como transport em `app.ts` sem estar declarado: o servidor
+  não subia em uma instalação limpa. Entrou como devDependency.
+
+## PR-M9.5 — Auditoria e correções
+
+Milestone sem funcionalidade nova: fecha dívidas do M5 ao M9 que faziam a plataforma
+mentir para o cidadão. Nada de M10/M11/M12 entrou aqui.
+
+### Contrato espacial: metro virou metro
+
+- A coluna é `geometry(Point, 4326)`, cuja unidade é **grau**. Os três sítios que
+  comparavam distância passaram a comparar em `geography`, onde o argumento é metro:
+  `findNearbyProblema` e `listarProblemas` (`common/problemas/problemas.sql.ts`) e
+  `listarEventos` (`common/eventos/eventos.sql.ts`). O `ST_Distance` que alimenta o
+  alias `distancia_m` também virou `geography` — antes devolvia **grau com nome de
+  metro** e o número vazava pela API até o `distancia_m` do mobile.
+- Efeito prático: o raio `15` do dedupe valia ~1.665 km (qualquer problema da mesma
+  causa no Brasil era duplicata) e o `5000` default da listagem e dos eventos era um
+  filtro **no-op**.
+- Migration `20260904_010_indices_geografia`: cria `idx_problemas_geom_geog` e
+  `idx_eventos_geom_geog` como índices de expressão sobre `(geom::geography)`.
+- **Decisão sobre os índices antigos:** `idx_problemas_geom` e `idx_eventos_geom`
+  foram **removidos**. Com o cast, nenhum predicado espacial usa mais a coluna crua, e
+  as outras consultas que tocam `geom` usam `ST_X`/`ST_Y`, acessores escalares que
+  **nunca** usam índice GIST. Mantê-los custaria escrita e disco sem nenhum ganho de
+  leitura. O `down` da migration recria os dois. `idx_mobilizacoes_geom` ficou como
+  estava: `mobilizacoes` não tem consulta por raio.
+
+### Dedupe de problema: comportamento, não só raio
+
+- `criarProblema` devolvia o problema de outra pessoa com **HTTP 201** e nenhum sinal:
+  o cidadão achava que tinha reportado o dele, nenhum evento era emitido, `cont_apoios`
+  não subia e ele não ficava ligado ao registro. Agora o handler devolve
+  `{ criado, problema }` e a rota responde **201 quando criou** e **200 quando
+  encontrou um parecido**.
+- A consulta passou a filtrar `status NOT IN ('removido', 'resolvido')` — antes um
+  problema removido ou resolvido bloqueava novos registros da mesma causa para sempre —
+  e a ordenar por `ST_Distance` real com `LIMIT 1` (antes era `LIMIT 1` sem `ORDER BY`,
+  ou seja, linha arbitrária).
+- **Raio do dedupe: 15 m → 30 m.** Decisão de produto tomada aqui: 15 m é menor que o
+  erro típico de GPS de celular (5-20 m), então duas pessoas relatando o mesmo buraco
+  de lados opostos da rua criariam registros distintos. 30 m cobre o erro sem juntar
+  problemas de quadras diferentes. `back-end.md` foi atualizado.
+- Mobile: `CriarProblemaScreen` não finge mais publicação. Quando o servidor devolve
+  `criado: false`, o app explica que já existe um registro no mesmo ponto e navega para
+  o detalhe dele, convidando a apoiar — que é também o que libera adicionar a foto.
+
+### Apoio: atomicidade e eventos
+
+- **A unicidade já estava correta e não foi tocada:** PK composta
+  `(problema_id, usuario_id)` + `ON CONFLICT DO NOTHING` já tornam apoio duplicado
+  impossível sob qualquer concorrência.
+- O problema era atomicidade: `apoiarProblema` fazia até 6 queries soltas **sem
+  transação**. Uma falha entre o `INSERT` e o `UPDATE` era irrecuperável — a
+  retentativa caía no `ON CONFLICT`, `inseriu` voltava `false` e o contador nunca mais
+  subia. Os `GREATEST(..., 0)` do decremento eram a cicatriz disso.
+- Apoiar e desapoiar viraram **um statement cada**, no idioma `WITH ... AS (INSERT/DELETE)`
+  que o projeto já usa em `marcarEnvio`. `jaApoiou()` foi **removida**: era
+  *check-then-act* que não protegia nada. Os `GREATEST` saíram: o `DELETE` é que
+  autoriza o decremento, então o contador não tem como ficar negativo.
+- `APOIO_CRIADO` e `APOIO_REMOVIDO` entraram em `problema_eventos`, emitidos dentro do
+  `emTransacao` como todos os outros domínios. O CHECK `chk_problema_eventos_tipo`
+  (migration `008`) travava os 9 tipos antigos e foi recriado com 11 na migration
+  `20260904_011_eventos_de_apoio`.
+- A mesma migration **reconcilia os contadores**: `cont_apoios` e
+  `cont_apoios_ponderados` são recalculados a partir de `problema_apoios` onde estiverem
+  divergentes, limpando o estrago que o bug de atomicidade já tenha causado.
+- **Limitação de backfill, assumida:** `APOIO_CRIADO` foi reconstruído de
+  `problema_apoios.criado_em`, então só aparece quem **ainda apoia**. Quem apoiou e
+  retirou o apoio antes desta migration **sumiu**: a remoção é `DELETE` físico, a PK não
+  guarda histórico e não havia trigger. `APOIO_REMOVIDO` **não é derivável de nada** e
+  só existe daqui para frente. A timeline de problemas antigos, portanto, mostra apoios
+  vivos sem a data real de quem já saiu, e nenhum evento de retirada anterior a este PR.
+
+### Denúncia: uma por usuário por problema
+
+- `problema_denuncias` só tinha `id` serial — **nenhum unique**. O mesmo usuário
+  denunciava o mesmo problema infinitas vezes; o único freio era o `denunciaLimiter`,
+  em memória por processo.
+- Regra adotada: **uma denúncia por usuário por problema**, `UNIQUE (problema_id, usuario_id)`.
+- Migration `20260904_012_denuncia_unica_por_usuario` **deduplica antes** de criar a
+  constraint (a ordem importa: com dado sujo a criação falharia), preservando a
+  denúncia **mais antiga** de cada par por `criado_em ASC NULLS LAST, id ASC`.
+- `inserirDenuncia` virou `ON CONFLICT (problema_id, usuario_id) DO UPDATE SET motivo = EXCLUDED.motivo`:
+  denunciar de novo troca o motivo, não cria linha. `contarDenuncias` passou a
+  `COUNT(DISTINCT usuario_id)`, correto sob a garantia nova e correto também sobre dado
+  legado ainda não migrado.
+
+### Evidência: quem apoiou também acumula
+
+- `DetalheProblemaScreen` usava `pode_encaminhar` para decidir se mostrava o botão de
+  adicionar evidência — um booleano servindo a três conceitos diferentes.
+- Regra adotada: **autor, quem já apoiou ou a moderação**. Isso alinha com a visão do
+  produto (evidência acumula da comunidade).
+- O servidor calcula e expõe `pode_adicionar_evidencia` como campo próprio em
+  `GET /problemas/:id`, separado de `pode_encaminhar`, e **a autorização real está no
+  caminho do upload** (`common/imagens/imagens.handler.ts`): esconder botão não é
+  segurança, quem não tem relação com o problema recebe 403 antes de o arquivo tocar o
+  storage.
+
+### Resposta do órgão: relato do cidadão, não fato institucional
+
+- O órgão não tem conta, token, callback nem verificação de inbound. Quem digita "o
+  órgão respondeu" é o próprio autor do encaminhamento, em texto livre, e `protocolo`
+  não é validado contra nada. O autorrelato foi **mantido**, mas a plataforma parou de
+  afirmá-lo como fato.
+- `Encaminhamento` ganhou `resposta_verificada` (hoje sempre `false`); o evento
+  `RESPOSTA_RECEBIDA` carrega `relato_do_cidadao: true`; o título na timeline virou
+  "Resposta relatada pelo cidadão" e tanto o `EncaminhamentoCard` quanto o
+  `RegistrarRespostaModal` avisam que o Mutira não confirma a resposta junto ao órgão.
+- **Trava no servidor:** `pode_registrar_resposta` só excluía `status === 'respondido'`
+  e não olhava `enviado_em`, então dava para registrar resposta de um e-mail em
+  `pendente` ou `falhou`. Agora `registrarResposta` recusa com 400 enquanto
+  `enviado_em` for nulo, e o campo do payload reflete isso.
+
+### Incoerências do M9
+
+- **`pode_encaminhar` parou de mentir.** Era calculado só como dono-ou-moderação e não
+  refletia as travas que o `POST /:id/encaminhamentos` aplica de fato: problema
+  `removido` → 400 e encaminhamento já aberto para aquele órgão → 400. Agora exige
+  também `status <> 'removido'` e a existência de pelo menos um órgão ativo sem
+  encaminhamento aberto (`existeOrgaoDisponivel`). A UI só oferece o que a API aceita.
+- **Encaminhar não faz mais o problema sumir.** `GET /problemas` tinha `status` com
+  default `'ativo'`, então mudar para `encaminhado` tirava o problema da listagem. O
+  default saiu: sem `status` explícito a listagem esconde apenas `removido` e mostra
+  `ativo`, `em_analise`, `encaminhado` e `resolvido`. Quem quiser só os ativos passa
+  `status=ativo`.
+- **O cache de 30s passou a ser invalidado.** `cache.delete` existia em
+  `shared/cache.ts` e não era chamado em fluxo nenhum. A interface `Cache` ganhou
+  `deletePorPrefixo` (implementável em Redis com `SCAN`) e
+  `invalidarCacheDeProblemas()` roda depois do commit em criar problema, alterar status,
+  encaminhar, apoiar, desapoiar e vincular problema a evento.
+- **`catch {}` vazio morreu.** A exceção do SMTP era engolida sem log e sem motivo
+  persistido. Agora o erro é logado e gravado na coluna nova
+  `problema_encaminhamentos.falha_motivo` (migration `20260904_013`), que volta no
+  payload — a UI mostra por que falhou em vez de só "Falha no envio".
+- **`falhou` deixou de ser estado morto.** `encaminhamentoAberto` usava
+  `status <> 'respondido'`, então um envio que falhou travava novos envios àquele órgão
+  **para sempre**; o mesmo valia para um `pendente` eterno (processo morto entre o
+  COMMIT e o `marcarEnvio`). Duas mudanças, sem fila, worker, scheduler ou retry
+  automático: "aberto" passou a ser `status IN ('pendente', 'enviado')`, então um
+  `falhou` não bloqueia mais nada; e entrou
+  `POST /problemas/:id/encaminhamentos/:encaminhamentoId/reenviar`, um reenvio
+  **disparado por pessoa** para os estados `pendente` e `falhou`, com botão próprio no
+  `EncaminhamentoCard` e o campo `pode_reenviar` no payload.
+- **`MOBILIZACAO_REALIZADA` fora da transação: falso positivo da auditoria.** Nos dois
+  pontos de emissão (`atualizarStatusMobilizacao` e `registrarResultadoMobilizacao`) o
+  `registrarEvento` já recebia o `executor` dentro do `emTransacao`. O que **estava**
+  fora da transação em `registrarResultadoMobilizacao` eram os `saveImagem` das imagens
+  do resultado, gravados depois do COMMIT: se falhassem, a mobilização ficava concluída
+  sem as fotos. Foram trazidos para dentro (`saveImagem` passou a aceitar `executor`).
+- **Unique parcial em `encaminhamentoAberto` — decisão: sim, criado.**
+  `encaminhamentoAberto` é um *read-then-write* fora de transação, sem lock: duas
+  requisições concorrentes criavam encaminhamentos duplicados para o mesmo órgão. A
+  migration `013` cria
+  `CREATE UNIQUE INDEX uq_encaminhamento_aberto ON problema_encaminhamentos (problema_id, orgao_id) WHERE status IN ('pendente', 'enviado')`.
+  O índice parcial é o que casa com a regra: `respondido` e `falhou` ficam de fora, então
+  liberam o órgão naturalmente. A migration **encerra como `falhou` os duplicados
+  abertos que já existiam**, com o motivo gravado em `falha_motivo`, antes de criar o
+  índice. A checagem prévia continua no handler pela mensagem de erro amigável, e a
+  violação `23505` é convertida no mesmo `AppError` de 400 para fechar a corrida.
+
+### `helperText` do `TextInput` era engolido
+
+- `mobile/src/shared/ui/TextInput.tsx` declarava `helperText?: string` na assinatura e
+  fazia `{...props}` no `PaperInput`: como não é prop do Paper, a mensagem **nunca era
+  renderizada**. Todo erro de validação era invisível.
+- Agora o componente renderiza o `HelperText` do Paper com `type` ligado ao `error` do
+  campo. Isso corrige de uma vez **10 usos** em 4 formulários — mais do que os 5
+  apontados na auditoria: `ProblemForm` (3), `RegistrarRespostaModal` (2),
+  `CriarMobilizacaoForm` (4) e `ResultadoForm` (1).
+- A decisão de mostrar (e com qual tipo) saiu para `shared/ui/helperText.ts`, função
+  pura, porque a stack de teste do mobile não renderiza árvore React Native.
+
+### Testes
+
+- **`npm run test` continua verde sem nenhum serviço no ar.** Os specs seguem mockando
+  `dbPool` inteiro e o glob continua `src/**/*.spec.ts`. Nada de integração entrou nele.
+- Os testes espaciais **precisavam** ser de integração: os specs atuais só afirmavam
+  `expect(...).toContain('ST_DWithin')`, o que passa com raio 15, 15000 ou 0,0000001 e é
+  estruturalmente incapaz de detectar o defeito de unidade.
+- Entrou uma suíte separada: glob `src/**/*.itest.ts`, `vitest.integration.config.ts`
+  próprio e `npm run test:integration`. **Não** é incluída no `npm run test` e o
+  workflow do CI **não foi tocado** (fora de escopo).
+- A suíte de integração recria o banco `econexa_itest` do zero, roda as migrations e
+  testa contra PostGIS real: distância em metros nos três sítios, dedupe a ~20 m
+  (deduplica) e a ~2 km (cria novo), problema `removido`/`resolvido` não bloqueando
+  registro novo, apoio concorrente resultando em uma linha e contador 1, `cont_apoios`
+  batendo com `COUNT(*)`, denúncia repetida com motivo diferente virando uma linha com
+  motivo atualizado, migration de dedupe rodando sobre dados sujos semeados de
+  propósito, upload permitido a quem apoiou e 403 a quem não tem relação, e resposta
+  bloqueada em encaminhamento não enviado.
+- Storage e SMTP são mockados **também** na integração: o que está sob teste ali é o
+  Postgres. MinIO e Mailpit continuam cobertos pelos specs de unidade.
+- No mobile a stack não mudou: vitest + `renderHook` do `@testing-library/react` +
+  funções puras. **Jest não entrou.**
+
+## Planejado — M10, M11, M12
+
+Os três estão **apenas planejados**. Nada deles foi implementado.
+
+### M10 — Níveis de engajamento
+
+Objetivo: transformar a participação em progressão visível, sem virar gamificação
+vazia. Base já existente: `users.peso_voto` e `common/abilities.ts`.
+
+- Modelo: tabela de contribuições por usuário derivada dos dados que já existem
+  (problemas criados, apoios, comentários, mobilizações realizadas, evidências,
+  encaminhamentos respondidos), com um nível calculado a partir dela.
+- O nível deve influenciar algo real — o `peso_voto` do apoio ponderado — e não só
+  um selo.
+- Endpoint de leitura do próprio nível e do nível público de um usuário.
+- Mobile: nível no `PerfilScreen` e ao lado do autor no comentário.
+- Fora de escopo deliberado: ranking global, badges decorativos, streaks.
+- **Decisão pendente:** de onde sai a contagem — agregação por consulta em cima de
+  `problema_eventos` ou contadores materializados. `problema_eventos` já é a fonte
+  natural e, desde o M9.5, tem `APOIO_CRIADO` e `APOIO_REMOVIDO`; o histórico anterior
+  ao M9.5, porém, é parcial (ver dívidas em aberto).
+
+### M11 — Notificações
+
+Objetivo: avisar quem acompanha um problema quando ele anda.
+
+- Gatilho: os tipos de `problema_eventos` que importam para o autor e para quem
+  apoiou (`ENCAMINHADO`, `RESPOSTA_RECEBIDA`, `STATUS_ALTERADO`, `RESOLVIDO`,
+  `MOBILIZACAO_CRIADA`).
+- Modelo: tabela de notificações por usuário com lido/não lido, alimentada a partir
+  do evento; `shared/queue.ts` (hoje `SyncQueue`) é o ponto de troca para processar
+  fora do request.
+- Endpoints: listar notificações, marcar como lida.
+- Mobile: badge no ícone e uma tela de lista.
+- Fora de escopo deliberado: push nativo, OneSignal, e-mail para o cidadão,
+  preferências finas por tipo.
+- **Decisão pendente:** quem é notificado — só o autor, ou também quem apoiou.
+  Notificar todos os apoiadores exige saber quem apoiou e quando; `problema_apoios`
+  guarda isso e o M9.5 passou a emitir `APOIO_CRIADO`/`APOIO_REMOVIDO`, então a decisão
+  já não depende de infraestrutura nova.
+
+### M12 — Busca e filtros
+
+Objetivo: achar um problema por texto, não só por proximidade no mapa.
+
+- Backend: busca textual em `titulo`/`descricao`/`tags` no Postgres
+  (`to_tsvector` em português + índice GIN), somada aos filtros que já existem
+  (`causaId`, `tipo`, `status`, `escopo`, `tags`).
+- Combinar texto com o filtro geoespacial que o `GET /problemas` já faz.
+- Mobile: barra de busca no `FeedScreen` com debounce e os filtros atuais do mapa
+  reaproveitados.
+- Fora de escopo deliberado: Elasticsearch, sugestão automática, busca semântica.
+- **Decisão pendente:** ordenação quando há texto — relevância (`ts_rank`) ou o
+  peso de apoios que a listagem usa hoje.
+
+## Dívidas em aberto
+
+Quitadas no M9.5: **apoio sem evento** (agora `APOIO_CRIADO`/`APOIO_REMOVIDO`) e
+**dedupe de coordenadas com raio errado** (agora comparado em `geography`, em metros).
+
+- **Histórico de apoio anterior ao M9.5 é parcial e não tem conserto.** O backfill
+  reconstruiu `APOIO_CRIADO` a partir de `problema_apoios.criado_em`, então cobre só
+  quem **ainda apoia**. Apoios que já tinham sido retirados sumiram: `DELETE` físico, PK
+  sem histórico, sem trigger. `APOIO_REMOVIDO` **não é derivável de nada** e só existe a
+  partir deste PR. Qualquer métrica de M10/M11 que dependa de "quantas vezes fulano
+  apoiou e desapoiou" precisa tratar a data de corte, não fingir histórico completo.
+- **`falha_motivo` de encaminhamentos anteriores é nulo.** A coluna nasceu no M9.5; as
+  falhas de envio antes disso foram engolidas pelo `catch {}` e não deixaram rastro em
+  lugar nenhum.
+- **Não há verificação real de resposta institucional.** O órgão continua sem conta,
+  token, callback ou inbound de e-mail. O M9.5 rotulou a resposta como relato do cidadão
+  e travou o registro em encaminhamento não enviado, mas verificar de verdade
+  (inbound e-mail, magic link, conta de órgão) segue fora de escopo.
+- **Reenvio é manual e sem retry.** `POST .../reenviar` depende de alguém apertar o
+  botão. Não há fila, worker, scheduler nem retry automático — decisão deliberada.
+- **`existeOrgaoDisponivel` responde por problema, não por órgão.** `pode_encaminhar`
+  diz "existe pelo menos um órgão ativo sem encaminhamento aberto"; a UI ainda pode
+  oferecer no modal um órgão específico que o servidor vai recusar com 400. Resolver
+  exigiria a listagem de órgãos saber o problema em questão.
+- `users` continua sem avatar; comentários e eventos mostram só o nome.
+- `shared/cache.ts` e `shared/ratelimit.ts` seguem em memória: com mais de uma
+  instância do backend, o rate-limit é por processo e o `deletePorPrefixo` novo só
+  limpa o cache **daquele** processo.
+- **`vincularProblema` (M7) muda status sem emitir evento.** `evento_problema` com
+  `resolveu = true` faz `UPDATE problemas SET status = 'resolvido'` direto no `.sql`,
+  sem passar por `aplicarStatusProblema`: o problema fica resolvido sem `STATUS_ALTERADO`
+  nem `RESOLVIDO` na timeline. O M9.5 passou a invalidar o cache nesse caminho, mas não
+  mexeu no fluxo por estar fora do escopo da auditoria.
+- **Specs e testes de integração são compilados para `dist/`.** `tsconfig.json` inclui
+  `src/**/*` sem `exclude`, então `*.spec.ts` já ia para o build antes deste PR e agora
+  `*.itest.ts` vai junto. Não quebra nada (o Dockerfile instala devDependencies), mas é
+  peso morto na imagem.

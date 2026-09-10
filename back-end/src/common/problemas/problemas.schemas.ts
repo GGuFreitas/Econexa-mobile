@@ -24,13 +24,16 @@ export const listarProblemasQuerySchema = z.object({
     .union([z.array(z.string()), z.string().transform((value) => [value])])
     .optional(),
   tipo: z.enum(['problema', 'ponto_positivo', 'cultural']).optional(),
-  status: z
-    .enum(['ativo', 'em_analise', 'encaminhado', 'resolvido', 'removido'])
-    .default('ativo'),
+  status: z.enum(['ativo', 'em_analise', 'encaminhado', 'resolvido', 'removido']).optional(),
   escopo: z.enum(['local', 'municipal', 'estadual', 'nacional']).optional(),
   pagina: z.coerce.number().int().positive().default(1),
   limite: z.coerce.number().int().positive().max(100).default(20),
 });
 
 export type CriarProblemaSchema = z.infer<typeof criarProblemaSchema>;
+export const alterarStatusProblemaSchema = z.object({
+  status: z.enum(['ativo', 'em_analise', 'encaminhado', 'resolvido', 'removido']),
+});
+
 export type ListarProblemasQuerySchema = z.infer<typeof listarProblemasQuerySchema>;
+export type AlterarStatusProblemaSchema = z.infer<typeof alterarStatusProblemaSchema>;

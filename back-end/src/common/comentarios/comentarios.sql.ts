@@ -1,4 +1,5 @@
 import { dbPool } from '@config/database.js';
+import type { Executor } from '@shared/transacao.js';
 import type {
   ComentarioRow,
   CriarComentarioInput,
@@ -10,8 +11,11 @@ export async function problemaExiste(problemaId: number): Promise<boolean> {
   return result.rows.length > 0;
 }
 
-export async function inserirComentario(input: CriarComentarioInput): Promise<ComentarioRow> {
-  const result = await dbPool.query(
+export async function inserirComentario(
+  input: CriarComentarioInput,
+  executor: Executor = dbPool,
+): Promise<ComentarioRow> {
+  const result = await executor.query(
     `INSERT INTO problema_comentarios (problema_id, usuario_id, conteudo)
      VALUES ($1, $2, $3)
      RETURNING id, problema_id, usuario_id, conteudo, criado_em,

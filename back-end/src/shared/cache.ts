@@ -2,6 +2,7 @@ export interface Cache {
   get<T>(key: string): Promise<T | undefined>;
   set(key: string, value: unknown, ttlSeconds?: number): Promise<void>;
   delete(key: string): Promise<void>;
+  deletePorPrefixo(prefixo: string): Promise<void>;
 }
 
 class MemoryCache implements Cache {
@@ -26,6 +27,12 @@ class MemoryCache implements Cache {
 
   async delete(key: string): Promise<void> {
     this.store.delete(key);
+  }
+
+  async deletePorPrefixo(prefixo: string): Promise<void> {
+    for (const key of this.store.keys()) {
+      if (key.startsWith(prefixo)) this.store.delete(key);
+    }
   }
 }
 

@@ -1,7 +1,9 @@
 import { api } from '@services/api';
-import type { CriarProblemaPayload, Problema } from '../types';
+import type { CriarProblemaPayload, ResultadoCriacaoProblema } from '../types';
 
-export async function criarProblema(payload: CriarProblemaPayload): Promise<Problema> {
-  const response = await api.post<Problema>('/problemas', payload);
+export async function criarProblema(
+  payload: CriarProblemaPayload,
+): Promise<ResultadoCriacaoProblema> {
+  const response = await api.post<ResultadoCriacaoProblema>('/problemas', payload);
   return response.data;
 }

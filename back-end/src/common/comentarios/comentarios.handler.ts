@@ -1,4 +1,6 @@
 import { AppError } from '@shared/errors.js';
+import { emTransacao } from '@shared/transacao.js';
+import { registrarEvento } from '@common/problemaEventos/problemaEventos.handler.js';
 import * as sql from './comentarios.sql.js';
 import type {
   Comentario,
@@ -40,8 +42,21 @@ export async function criarComentario(input: CriarComentarioInput): Promise<Come
     throw new AppError('Problema não encontrado.', 404);
   }
 
-  const row = await sql.inserirComentario({ ...input, conteudo });
-  return apresentar(row, input.usuarioId);
+  return emTransacao(async (executor) => {
+    const row = await sql.inserirComentario({ ...input, conteudo }, executor);
+
+    await registrarEvento(
+      {
+        problemaId: input.problemaId,
+        tipo: 'COMENTARIO_CRIADO',
+        usuarioId: input.usuarioId,
+        dados: { comentario_id: row.id, trecho: conteudo.slice(0, 140) },
+      },
+      executor,
+    );
+
+    return apresentar(row, input.usuarioId);
+  });
 }
 
 export async function excluirComentario(

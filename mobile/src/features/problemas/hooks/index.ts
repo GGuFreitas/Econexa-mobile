@@ -5,4 +5,6 @@ export { useCriarProblema } from './useCriarProblema';
 export { useApoio } from './useApoio';
 export { useDenuncia } from './useDenuncia';
 export { useImagensProblema } from './useImagensProblema';
+export { useEnviarEvidencia } from './useEnviarEvidencia';
+export { useAlterarStatus } from './useAlterarStatus';
 export { useTimeline } from './useTimeline';

@@ -1,4 +1,5 @@
 import { AppError } from '@shared/errors.js';
+import { invalidarCacheDeProblemas } from '@common/problemas/problemas.handler.js';
 import * as sql from './eventos.sql.js';
 import type {
   CriarEventoInput,
@@ -46,6 +47,7 @@ export async function vincularProblema(input: VincularProblemaInput): Promise<vo
     throw new AppError('Evento não encontrado.', 404);
   }
   await sql.vincularProblema(input);
+  await invalidarCacheDeProblemas();
 }
 
 export async function inscreverEmEvento(

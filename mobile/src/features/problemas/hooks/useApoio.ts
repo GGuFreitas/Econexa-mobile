@@ -29,6 +29,7 @@ export function useApoio(problemaId: number) {
       qc.invalidateQueries({ queryKey: ['problemas'] });
       qc.invalidateQueries({ queryKey: ['problema', problemaId] });
       qc.invalidateQueries({ queryKey: ['estatisticas'] });
+      qc.invalidateQueries({ queryKey: ['eventos', problemaId] });
     },
   });
 
@@ -40,6 +41,7 @@ export function useApoio(problemaId: number) {
       qc.invalidateQueries({ queryKey: ['problemas'] });
       qc.invalidateQueries({ queryKey: ['problema', problemaId] });
       qc.invalidateQueries({ queryKey: ['estatisticas'] });
+      qc.invalidateQueries({ queryKey: ['eventos', problemaId] });
     },
   });
 
