@@ -4,7 +4,7 @@ export type User = {
   id: string;
   name: string;
   email: string;
-  role: 'citizen' | 'specialist' | 'organization';
+  role: 'citizen' | 'specialist' | 'admin';
   vote_weight: number;
 };
 

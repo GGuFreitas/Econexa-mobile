@@ -78,23 +78,23 @@ describe('mobilizacoes handlers', () => {
 
   it('permite transição válida de status (agendada -> em_andamento)', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'agendada' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 1, usuario_id: 9, status: 'agendada' }] })
       .mockResolvedValueOnce({ rows: [{ id: 1, status: 'em_andamento' }] }) // updateStatus
       .mockResolvedValueOnce({ rows: [{ total: 0 }] });
 
-    const mobilizacao = await atualizarStatusMobilizacao(1, 'em_andamento', 9);
+    const mobilizacao = await atualizarStatusMobilizacao(1, 'em_andamento', 9, 'citizen');
 
     expect(mobilizacao.status).toBe('em_andamento');
   });
 
   it('registra MOBILIZACAO_REALIZADA ao concluir a mobilização', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'em_andamento' }] })
+      .mockResolvedValueOnce({ rows: [{ id: 1, usuario_id: 9, status: 'em_andamento' }] })
       .mockResolvedValueOnce({ rows: [{ id: 1, problema_id: 4, titulo: 'Mutirão', status: 'realizada' }] })
       .mockResolvedValueOnce({ rows: [{ id: 51 }] })
       .mockResolvedValueOnce({ rows: [{ total: 3 }] });
 
-    await atualizarStatusMobilizacao(1, 'realizada', 9);
+    await atualizarStatusMobilizacao(1, 'realizada', 9, 'citizen');
 
     expect(mockQuery.mock.calls[2][0]).toContain('INSERT INTO problema_eventos');
     expect(mockQuery.mock.calls[2][1]).toEqual([
@@ -106,9 +106,9 @@ describe('mobilizacoes handlers', () => {
   });
 
   it('rejeita transição inválida de status (realizada -> agendada)', async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [{ id: 1, status: 'realizada' }] });
+    mockQuery.mockResolvedValueOnce({ rows: [{ id: 1, usuario_id: 9, status: 'realizada' }] });
 
-    await expect(atualizarStatusMobilizacao(1, 'agendada', 9)).rejects.toThrow(
+    await expect(atualizarStatusMobilizacao(1, 'agendada', 9, 'citizen')).rejects.toThrow(
       'Não é possível mudar de "realizada" para "agendada".',
     );
   });

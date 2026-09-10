@@ -1,5 +1,6 @@
 import { AppError } from '@shared/errors.js';
 import { emTransacao, type Executor } from '@shared/transacao.js';
+import { ehAdmin } from '@common/abilities.js';
 import { saveImagem } from '@common/imagens/imagens.handler.js';
 import { registrarEvento } from '@common/problemaEventos/problemaEventos.handler.js';
 import * as sql from './mobilizacoes.sql.js';
@@ -12,16 +13,39 @@ import type {
   ResultadoMobilizacaoInput,
 } from './mobilizacoes.types.js';
 
-const TRANSICOES_PERMITIDAS: Record<MobilizacaoStatus, MobilizacaoStatus[]> = {
+export const TRANSICOES_PERMITIDAS: Record<MobilizacaoStatus, MobilizacaoStatus[]> = {
   agendada: ['em_andamento', 'cancelada'],
   em_andamento: ['realizada', 'cancelada'],
   realizada: [],
   cancelada: [],
 };
 
-async function comContadores(mobilizacao: Mobilizacao): Promise<Mobilizacao> {
+export function podeGerenciarMobilizacao(
+  mobilizacao: Mobilizacao,
+  usuarioId?: number,
+  role?: string,
+): boolean {
+  if (usuarioId == null || role == null) return false;
+  return mobilizacao.usuario_id === usuarioId || ehAdmin(role);
+}
+
+async function comContadores(
+  mobilizacao: Mobilizacao,
+  usuarioId?: number,
+  role?: string,
+): Promise<Mobilizacao> {
   const cont_participantes = await sql.contarParticipantes(mobilizacao.id);
-  return { ...mobilizacao, cont_participantes };
+  return {
+    ...mobilizacao,
+    cont_participantes,
+    pode_gerenciar: podeGerenciarMobilizacao(mobilizacao, usuarioId, role),
+  };
+}
+
+function exigirGestao(mobilizacao: Mobilizacao, usuarioId: number, role: string): void {
+  if (!podeGerenciarMobilizacao(mobilizacao, usuarioId, role)) {
+    throw new AppError('Você não pode gerenciar esta mobilização.', 403);
+  }
 }
 
 export async function criarMobilizacao(input: CriarMobilizacaoInput): Promise<Mobilizacao> {
@@ -74,12 +98,16 @@ export async function listarMobilizacoes(query: ListarMobilizacoesQuery): Promis
   return sql.listarMobilizacoes(query);
 }
 
-export async function obterMobilizacao(id: number): Promise<Mobilizacao> {
+export async function obterMobilizacao(
+  id: number,
+  usuarioId?: number,
+  role?: string,
+): Promise<Mobilizacao> {
   const mobilizacao = await sql.getMobilizacaoById(id);
   if (!mobilizacao) {
     throw new AppError('Mobilização não encontrada.', 404);
   }
-  return comContadores(mobilizacao);
+  return comContadores(mobilizacao, usuarioId, role);
 }
 
 async function exigirMobilizacao(id: number): Promise<Mobilizacao> {
@@ -93,18 +121,25 @@ async function exigirMobilizacao(id: number): Promise<Mobilizacao> {
 export async function atualizarMobilizacao(
   id: number,
   input: AtualizarMobilizacaoInput,
+  usuarioId: number,
+  role: string,
 ): Promise<Mobilizacao> {
-  await exigirMobilizacao(id);
+  const atual = await exigirMobilizacao(id);
+  exigirGestao(atual, usuarioId, role);
+
   const mobilizacao = await sql.updateMobilizacao(id, input);
-  return comContadores(mobilizacao);
+  return comContadores(mobilizacao, usuarioId, role);
 }
 
 export async function atualizarStatusMobilizacao(
   id: number,
   status: MobilizacaoStatus,
   usuarioId: number,
+  role: string,
 ): Promise<Mobilizacao> {
   const atual = await exigirMobilizacao(id);
+  exigirGestao(atual, usuarioId, role);
+
   const permitido = TRANSICOES_PERMITIDAS[atual.status as MobilizacaoStatus]?.includes(status);
   if (!permitido) {
     throw new AppError(`Não é possível mudar de "${atual.status}" para "${status}".`, 400);
@@ -118,19 +153,27 @@ export async function atualizarStatusMobilizacao(
     return atualizada;
   });
 
-  return comContadores(mobilizacao);
+  return comContadores(mobilizacao, usuarioId, role);
 }
 
 export async function registrarResultadoMobilizacao(
   id: number,
   input: ResultadoMobilizacaoInput,
   usuarioId: number,
+  role: string,
 ): Promise<Mobilizacao> {
   const atual = await exigirMobilizacao(id);
+  exigirGestao(atual, usuarioId, role);
+
+  const jaRealizada = atual.status === 'realizada';
+  const alcancavel = TRANSICOES_PERMITIDAS[atual.status as MobilizacaoStatus]?.includes('realizada');
+  if (!jaRealizada && !alcancavel) {
+    throw new AppError(`Não é possível mudar de "${atual.status}" para "realizada".`, 400);
+  }
 
   const mobilizacao = await emTransacao(async (executor) => {
     const atualizada = await sql.registrarResultado(id, input, executor);
-    if (atual.status !== 'realizada') {
+    if (!jaRealizada) {
       await registrarMobilizacaoRealizada(atualizada, usuarioId, executor);
     }
 
@@ -150,7 +193,7 @@ export async function registrarResultadoMobilizacao(
     return atualizada;
   });
 
-  return comContadores(mobilizacao);
+  return comContadores(mobilizacao, usuarioId, role);
 }
 
 export async function participarDaMobilizacao(

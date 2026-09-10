@@ -53,7 +53,7 @@ export function MobilizacaoDetailScreen() {
 
   const label = STATUS_LABELS[mobilizacao.status];
   const color = statusColors[mobilizacao.status as keyof typeof statusColors] ?? '#64748B';
-  const isCriador = true; // TODO: verificar se é o criador
+  const podeGerenciar = mobilizacao.pode_gerenciar;
   const jaParticipa = mobilizacao.usuario_participa;
 
   const handleParticipar = () => {
@@ -150,14 +150,14 @@ export function MobilizacaoDetailScreen() {
               >
                 {jaParticipa ? 'Sair' : 'Participar'}
               </Button>
-              {isCriador && (
+              {podeGerenciar && (
                 <Button mode="outlined" icon="play" onPress={() => handleStatusChange('em_andamento')}>
                   Iniciar
                 </Button>
               )}
             </>
           )}
-          {mobilizacao.status === 'em_andamento' && isCriador && (
+          {mobilizacao.status === 'em_andamento' && podeGerenciar && (
             <Button
               mode="contained"
               icon="check"
@@ -167,7 +167,7 @@ export function MobilizacaoDetailScreen() {
               Marcar como realizada
             </Button>
           )}
-          {mobilizacao.status === 'realizada' && !mobilizacao.resultado_descricao && isCriador && (
+          {mobilizacao.status === 'realizada' && !mobilizacao.resultado_descricao && podeGerenciar && (
             <Button
               mode="contained"
               icon="clipboard-text"
@@ -177,7 +177,7 @@ export function MobilizacaoDetailScreen() {
               Adicionar resultado
             </Button>
           )}
-          {mobilizacao.status === 'agendada' && isCriador && (
+          {mobilizacao.status === 'agendada' && podeGerenciar && (
             <Button mode="outlined" icon="cancel" onPress={() => handleStatusChange('cancelada')}>
               Cancelar
             </Button>

@@ -418,6 +418,136 @@ mentir para o cidadão. Nada de M10/M11/M12 entrou aqui.
 - No mobile a stack não mudou: vitest + `renderHook` do `@testing-library/react` +
   funções puras. **Jest não entrou.**
 
+## PR-A — Segurança e modelo de papéis
+
+Milestone sem funcionalidade nova. Fecha buracos de autorização que deixavam qualquer
+pessoa autenticada agir sobre conteúdo alheio, e arruma o modelo de papéis para que ele
+signifique alguma coisa. Nada de M10/M11/M12 entrou aqui.
+
+### Escalada de privilégio no cadastro
+
+- `registerSchema` aceitava `role: z.enum(['citizen','specialist','organization']).optional()`
+  e `registerUser` repassava o valor direto para o `INSERT`. **Qualquer pessoa se
+  cadastrava como `specialist` e, com isso, ganhava `problemas:moderate`** — poder de
+  mudar status e remover problema dos outros. Era escalada de privilégio por payload,
+  sem nenhuma verificação.
+- `role` **saiu do corpo do cadastro**. Todo registro cria `citizen`; um `role` enviado
+  no JSON é ignorado pelo zod, não recusado — o cliente não precisa saber que existia.
+- **`organization` saiu do enum de papéis.** Era decorativo: a única habilidade que só
+  ele tinha, `mutiroes:manage`, nunca foi consultada em linha de código nenhuma. O papel
+  e seu fluxo ficam fora de escopo até existir produto para eles.
+- Mobile: `RegisterInput` perdeu `role`, e `User['role']`, `ApiUser['role']` e o
+  `ROLE_LABEL` do `PerfilScreen` passaram a `citizen|specialist|admin`.
+
+### Especialista deixou de ser moderador
+
+- `common/abilities.ts` dava `problemas:moderate` ao `specialist`, conflando competência
+  técnica ("entende de saneamento") com poder sobre conteúdo alheio. **A habilidade
+  agora é exclusiva do `admin`**, e com isso `podeGerenciarProblema` virou de fato
+  "autor ou admin" — a trava de `removido` idem.
+- **Nove das dez habilidades declaradas eram órfãs** (`problemas:create`, `peticoes:create`,
+  `peticoes:moderate`, `apoios:give`, `mutiroes:create`, `mutiroes:manage`,
+  `eventos:create`, `usuarios:read`, `usuarios:manage`): nenhum `can(...)` no projeto
+  perguntava por elas. Foram removidas. `Ability` hoje é um tipo de um valor só,
+  `problemas:moderate`, e a matriz diz a verdade sobre o que existe. Nenhum uso novo foi
+  inventado para as que saíram.
+- Entrou `ehAdmin(role)` para as checagens que são de **papel**, não de habilidade:
+  gestão de mobilização e leitura da lista de denunciantes.
+- **`admin` era inalcançável por qualquer caminho de código** — nenhuma rota, flag ou
+  variável de ambiente promovia alguém. Entrou um bootstrap **explicitamente manual**:
+  `npm run admin:promover -- <email>` (`src/scripts/promoverAdmin.ts`), com o SQL
+  equivalente documentado em `back-end.md` §5.1. É operação administrativa, feita com
+  acesso ao banco, deliberadamente fora do alcance da API.
+- **Consequência aceita:** num banco novo não existe `admin`, então ninguém remove
+  problema alheio até que alguém seja promovido à mão. É estritamente mais seguro que o
+  estado anterior e não regride tela nenhuma — não existe UI de moderação no mobile.
+
+### Domínio `eventos` removido inteiro
+
+`common/eventos/`, `routes/eventos/`, o registro em `routes/index.ts`, os testes do
+domínio e as tabelas `eventos`, `evento_problema` e `evento_participantes` (migration
+`20260904_014_remove_eventos`, com `down` que recria as três).
+
+- O motivo forte: **`vincularProblema` fazia `UPDATE problemas SET status = 'resolvido'`
+  sem nenhuma checagem de dono**. Pulava `podeGerenciarProblema`, pulava
+  `TRANSICOES_STATUS` e não emitia `STATUS_ALTERADO` nem `RESOLVIDO`. Qualquer pessoa
+  autenticada resolvia problema alheio, e a timeline não registrava. Era a dívida
+  "vincularProblema muda status sem emitir evento" — resolvida deletando o caminho, não
+  remendando.
+- Nenhum cliente consumia: o mobile chama `/problemas/:id/eventos`, que é o domínio
+  `problemaEventos` (a timeline), coisa diferente. Não havia uma única chamada a
+  `/eventos`.
+- `mobilizacoes` já é o domínio vivo para o mesmo conceito, e passa por transação,
+  permissão e timeline.
+- Foram junto: `features/eventos/` e `features/mutiroes/` (pastas só com `.gitkeep`) e
+  `idx_mobilizacoes_geom`, um GIST morto — nenhuma consulta de `mobilizacoes` faz
+  predicado espacial, a listagem filtra por `problema_id`.
+
+### Mobilização tinha dono só no papel
+
+- `atualizarMobilizacao`, `atualizarStatusMobilizacao` e `registrarResultadoMobilizacao`
+  só chamavam `exigirMobilizacao(id)` — checavam **existência**, não autoria. Qualquer
+  pessoa autenticada cancelava, concluía ou reescrevia mobilização alheia. As três agora
+  exigem criador ou `admin` e respondem 403.
+- A permissão sai no payload como `pode_gerenciar` (`GET /mobilizacoes/:id` ganhou
+  `optionalAuth` para calculá-la). O mobile trocou o
+  `const isCriador = true; // TODO` do `MobilizacaoDetailScreen` pelo campo real.
+- **`registrarResultado` forçava `status = 'realizada'` no SQL** sem consultar
+  `TRANSICOES_PERMITIDAS`, tornando `agendada → realizada` e `cancelada → realizada`
+  alcançáveis por essa rota enquanto o `PATCH /:id/status` as recusaria. Agora passa
+  pela mesma validação. Registrar resultado numa mobilização **já** `realizada` continua
+  valendo (é preencher o relato) e não reemite `MOBILIZACAO_REALIZADA`.
+
+### `POST /imagens` era bypass do fluxo de evidência
+
+`tipo_entidade` era `z.string().min(1)` livre, `entidade_id` um `z.number()` sem FK e
+`url` qualquer URL. Contornava `podeAdicionarEvidencia`, o limite de 5 MB, a validação
+de MIME e a conferência de assinatura de `enviarEvidenciaProblema`, e não emitia
+`EVIDENCIA_ADICIONADA`. Sem consumidor no mobile. **A rota foi removida**, junto com o
+`createImagemSchema` que só ela usava. O caminho legítimo é
+`POST /imagens/upload/problema/:problemaId`; `GET /imagens/:tipo/:id`, que o mobile usa,
+ficou. `saveImagem` continua como função interna, chamada pelo resultado de mobilização
+dentro da transação.
+
+### Vazamento de denúncia e força bruta
+
+- `GET /problemas/:id/denuncias` fazia `SELECT *` com só `requireAuth`: **qualquer
+  pessoa logada via `usuario_id` e `motivo` de cada denunciante**, inclusive o autor do
+  problema descobrindo quem o denunciou. Passou a exigir `admin` (403 para o resto). Não
+  há consumidor no mobile.
+- `POST /auth/login` e `POST /auth/register` **não tinham rate-limit nenhum** — as duas
+  únicas rotas anônimas, sem freio contra força bruta de senha nem contra criação de
+  contas em massa. Entraram `loginLimiter` (10/min) e `registroLimiter` (5/min), com
+  chave por **IP**, já que não há usuário autenticado.
+- `rateLimitGuard` saiu de `routes/problemas/index.ts` para `shared/ratelimit.ts`, junto
+  com as chaves `porUsuario` e `porOrigem`, para as rotas de auth reaproveitarem o mesmo
+  mecanismo em vez de duplicá-lo.
+
+### Testes
+
+- `src/tests/integracao/servidor.ts`: monta um Fastify com o mesmo `registerRoutes` da
+  aplicação e responde a `app.inject`, mais `tokenDe(id, role)` para assinar JWT de
+  teste. É o que permite provar autorização e superfície HTTP de verdade, não só
+  comportamento de handler.
+- `auth.itest.ts`: cadastro pedindo `specialist` (e pedindo `admin`) cria `citizen`,
+  conferido também na linha do banco; `429` no cadastro depois de 5 e no login depois de
+  10, por origem.
+- `rotas.itest.ts`: `POST /imagens` responde 404; `/eventos` responde 404 em listagem,
+  criação e no vínculo que resolvia problema alheio; o upload legítimo continua
+  registrado (401 sem token) e a leitura de imagens segue pública.
+- `mobilizacoes.itest.ts`: 403 para não-criador em editar, cancelar e registrar
+  resultado; `specialist` não herda poder; `admin` gerencia; `pode_gerenciar` reflete
+  quem pediu; resultado a partir de `agendada` e de `cancelada` recusado com 400.
+- `problemas.permissoes.itest.ts`: 403 para não-autor no `PATCH /status`, `specialist`
+  sem moderação (nem sobre o próprio problema, para `removido`), autor movendo o próprio
+  e `admin` removendo o alheio.
+- `denuncias.itest.ts`: nem o autor do problema lê a lista de denunciantes.
+- Specs mockados ajustados: `mobilizacoes.handler.spec.ts` (assinaturas novas com
+  `usuario_id` e `role`) e `denuncias.handler.spec.ts` (403 para não-moderação).
+  `eventos.handler.spec.ts` e `eventos.itest.ts` foram deletados com o domínio.
+- `npm run test` continua verde **sem nenhum serviço no ar**. `npm run test:integration`
+  ainda exige `docker compose up postgres` — Testcontainers é o PR seguinte.
+
 ## Planejado — M10, M11, M12
 
 Os três estão **apenas planejados**. Nada deles foi implementado.
@@ -478,6 +608,9 @@ Objetivo: achar um problema por texto, não só por proximidade no mapa.
 Quitadas no M9.5: **apoio sem evento** (agora `APOIO_CRIADO`/`APOIO_REMOVIDO`) e
 **dedupe de coordenadas com raio errado** (agora comparado em `geography`, em metros).
 
+Quitada no PR-A: **`vincularProblema` mudava status sem emitir evento e sem checar
+dono** — o domínio `eventos` inteiro saiu, então o caminho não existe mais.
+
 - **Histórico de apoio anterior ao M9.5 é parcial e não tem conserto.** O backfill
   reconstruiu `APOIO_CRIADO` a partir de `problema_apoios.criado_em`, então cobre só
   quem **ainda apoia**. Apoios que já tinham sido retirados sumiram: `DELETE` físico, PK
@@ -501,11 +634,13 @@ Quitadas no M9.5: **apoio sem evento** (agora `APOIO_CRIADO`/`APOIO_REMOVIDO`) e
 - `shared/cache.ts` e `shared/ratelimit.ts` seguem em memória: com mais de uma
   instância do backend, o rate-limit é por processo e o `deletePorPrefixo` novo só
   limpa o cache **daquele** processo.
-- **`vincularProblema` (M7) muda status sem emitir evento.** `evento_problema` com
-  `resolveu = true` faz `UPDATE problemas SET status = 'resolvido'` direto no `.sql`,
-  sem passar por `aplicarStatusProblema`: o problema fica resolvido sem `STATUS_ALTERADO`
-  nem `RESOLVIDO` na timeline. O M9.5 passou a invalidar o cache nesse caminho, mas não
-  mexeu no fluxo por estar fora do escopo da auditoria.
+- **Não existe interface de moderação.** `admin` só nasce por promoção manual no banco
+  (`npm run admin:promover`), e o mobile não tem tela para as ações que só ele pode
+  fazer (remover problema, ler a lista de denunciantes). Enquanto ninguém for promovido,
+  essas capacidades existem no servidor e não são exercidas por ninguém.
+- **`specialist` hoje não faz nada.** Depois do PR-A ele tem exatamente as mesmas
+  permissões de `citizen`; o que sobra é o rótulo no perfil. Dar sentido ao papel
+  depende de verificação por certificado, que segue fora de escopo.
 - **Specs e testes de integração são compilados para `dist/`.** `tsconfig.json` inclui
   `src/**/*` sem `exclude`, então `*.spec.ts` já ia para o build antes deste PR e agora
   `*.itest.ts` vai junto. Não quebra nada (o Dockerfile instala devDependencies), mas é

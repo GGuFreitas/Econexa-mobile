@@ -18,6 +18,7 @@ export interface Mobilizacao {
   atualizado_em: string;
   cont_participantes?: number;
   usuario_participa?: boolean;
+  pode_gerenciar?: boolean;
 }
 
 export interface MobilizacaoQuery {

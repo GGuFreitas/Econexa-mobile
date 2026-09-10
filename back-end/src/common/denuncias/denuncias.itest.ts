@@ -30,7 +30,7 @@ describe('denuncias: uma por usuário por problema', () => {
       motivo: 'conteudo_inadequado',
     });
 
-    const denuncias = await listarDenuncias(problemaId);
+    const denuncias = await listarDenuncias(problemaId, 'admin');
 
     expect(denuncias).toHaveLength(1);
     expect(denuncias[0].motivo).toBe('conteudo_inadequado');
@@ -59,6 +59,18 @@ describe('denuncias: uma por usuário por problema', () => {
     await criarDenuncia({ problemaId, usuarioId: segundo, motivo: 'outro' });
 
     expect(await contarDenuncias(problemaId)).toBe(2);
-    expect(await listarDenuncias(problemaId)).toHaveLength(2);
+    expect(await listarDenuncias(problemaId, 'admin')).toHaveLength(2);
+  });
+
+  it('nem o autor do problema vê quem o denunciou', async () => {
+    const denunciante = await criarUsuario('Sara');
+    await criarDenuncia({ problemaId, usuarioId: denunciante, motivo: 'spam' });
+
+    await expect(listarDenuncias(problemaId, 'citizen')).rejects.toMatchObject({
+      statusCode: 403,
+    });
+    await expect(listarDenuncias(problemaId, 'specialist')).rejects.toMatchObject({
+      statusCode: 403,
+    });
   });
 });

@@ -1,4 +1,4 @@
-import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import type { FastifyInstance } from 'fastify';
 import { parse } from '@shared/validate.js';
 import { created, ok } from '@shared/http.js';
 import { optionalAuth, requireAuth } from '@shared/auth.js';
@@ -8,7 +8,8 @@ import {
   criarProblemaLimiter,
   denunciaLimiter,
   encaminhamentoLimiter,
-  RateLimiter,
+  porUsuario,
+  rateLimitGuard,
 } from '@shared/ratelimit.js';
 import {
   alterarStatusProblemaSchema,
@@ -56,24 +57,13 @@ function parseId(value: string): number {
   return id;
 }
 
-function rateLimitGuard(
-  limiter: RateLimiter,
-  keyOf: (request: FastifyRequest) => string,
-): (request: FastifyRequest, _reply: FastifyReply) => Promise<void> {
-  return async (request) => {
-    if (!limiter.tryConsume(keyOf(request))) {
-      throw new AppError('Muitas requisições. Tente novamente em instantes.', 429);
-    }
-  };
-}
-
 export async function problemasRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/',
     {
       preHandler: [
         requireAuth,
-        rateLimitGuard(criarProblemaLimiter, (request) => String(request.user!.id)),
+        rateLimitGuard(criarProblemaLimiter, porUsuario),
       ],
     },
     async (request, reply) => {
@@ -136,7 +126,7 @@ export async function problemasRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [
         requireAuth,
-        rateLimitGuard(denunciaLimiter, (request) => String(request.user!.id)),
+        rateLimitGuard(denunciaLimiter, porUsuario),
       ],
     },
     async (request, reply) => {
@@ -153,7 +143,7 @@ export async function problemasRoutes(app: FastifyInstance): Promise<void> {
 
   app.get('/:id/denuncias', { preHandler: requireAuth }, async (request, reply) => {
     const id = parseId((request.params as { id: string }).id);
-    const denuncias = await listarDenuncias(id);
+    const denuncias = await listarDenuncias(id, request.user!.role);
     return ok(reply, denuncias);
   });
 
@@ -180,7 +170,7 @@ export async function problemasRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [
         requireAuth,
-        rateLimitGuard(comentarioLimiter, (request) => String(request.user!.id)),
+        rateLimitGuard(comentarioLimiter, porUsuario),
       ],
     },
     async (request, reply) => {
@@ -225,7 +215,7 @@ export async function problemasRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [
         requireAuth,
-        rateLimitGuard(encaminhamentoLimiter, (request) => String(request.user!.id)),
+        rateLimitGuard(encaminhamentoLimiter, porUsuario),
       ],
     },
     async (request, reply) => {
@@ -247,7 +237,7 @@ export async function problemasRoutes(app: FastifyInstance): Promise<void> {
     {
       preHandler: [
         requireAuth,
-        rateLimitGuard(encaminhamentoLimiter, (request) => String(request.user!.id)),
+        rateLimitGuard(encaminhamentoLimiter, porUsuario),
       ],
     },
     async (request, reply) => {

@@ -46,13 +46,18 @@ describe('denuncias handlers', () => {
     ).rejects.toThrow('Problema não encontrado.');
   });
 
-  it('lista denuncias de um problema', async () => {
+  it('lista denuncias de um problema para a moderação', async () => {
     mockQuery.mockResolvedValueOnce({ rows: [{ id: 10, motivo: 'spam' }] });
 
-    const l = await listarDenuncias(1);
+    const l = await listarDenuncias(1, 'admin');
 
     expect(l).toHaveLength(1);
     expect(mockQuery.mock.calls[0][0]).toContain('FROM problema_denuncias');
+  });
+
+  it('recusa a lista de denunciantes para quem não é moderação', async () => {
+    await expect(listarDenuncias(1, 'citizen')).rejects.toMatchObject({ statusCode: 403 });
+    expect(mockQuery).not.toHaveBeenCalled();
   });
 
   it('conta denunciantes distintos, correto mesmo com dado legado repetido', async () => {

@@ -11,7 +11,7 @@ import { useLocalizacao } from '@shared/hooks/useLocalizacao';
 const ROLE_LABEL: Record<string, string> = {
   citizen: 'Cidadão',
   specialist: 'Especialista',
-  organization: 'Organização',
+  admin: 'Moderação',
 };
 
 export function PerfilScreen() {
