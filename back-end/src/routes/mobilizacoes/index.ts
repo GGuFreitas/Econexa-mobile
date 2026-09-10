@@ -32,13 +32,17 @@ function parseId(value: string): number {
 export async function mobilizacoesRoutes(app: FastifyInstance): Promise<void> {
   app.post('/', { preHandler: requireAuth }, async (request, reply) => {
     const body = parse(criarMobilizacaoSchema, request.body);
-    const mobilizacao = await criarMobilizacao({ ...body, usuarioId: request.user!.id });
+    const mobilizacao = await criarMobilizacao({
+      ...body,
+      usuarioId: request.user!.id,
+      role: request.user!.role,
+    });
     return created(reply, mobilizacao);
   });
 
-  app.get('/', async (request, reply) => {
+  app.get('/', { preHandler: optionalAuth }, async (request, reply) => {
     const query = parse(listarMobilizacoesQuerySchema, request.query);
-    const mobilizacoes = await listarMobilizacoes(query);
+    const mobilizacoes = await listarMobilizacoes(query, request.user?.id, request.user?.role);
     return ok(reply, mobilizacoes);
   });
 

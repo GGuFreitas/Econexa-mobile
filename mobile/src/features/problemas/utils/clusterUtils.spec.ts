@@ -16,7 +16,6 @@ function fake(id: number, lat: number, lng: number): Problema {
     escopo: 'local',
     cont_apoios: 0,
     cont_apoios_ponderados: 0,
-    cont_visualizacoes: 0,
     criado_em: '',
     atualizado_em: '',
     lat,

@@ -151,6 +151,20 @@ describe('migrações do M9.5 sobre dados sujos', () => {
     expect(indices).not.toContain('idx_mobilizacoes_geom');
   });
 
+  it('derruba a coluna de visualizações e o índice de denúncia que virou redundante', async () => {
+    const colunas = await knex('information_schema.columns')
+      .where({ table_name: 'problemas' })
+      .pluck('column_name');
+    expect(colunas).not.toContain('cont_visualizacoes');
+    expect(colunas).toContain('cont_apoios_ponderados');
+
+    const indices = await knex('pg_indexes')
+      .where({ tablename: 'problema_denuncias' })
+      .pluck('indexname');
+    expect(indices).not.toContain('idx_denuncias_problema');
+    expect(indices).toContain('uq_denuncias_problema_usuario');
+  });
+
   it('o ciclo rollback e migrate volta ao mesmo estado', async () => {
     await knex.migrate.rollback();
 
@@ -165,6 +179,11 @@ describe('migrações do M9.5 sobre dados sujos', () => {
       .whereIn('table_name', ['eventos', 'evento_problema', 'evento_participantes'])
       .pluck('table_name');
     expect(eventosDeVolta).toHaveLength(3);
+
+    const colunasDeVolta = await knex('information_schema.columns')
+      .where({ table_name: 'problemas' })
+      .pluck('column_name');
+    expect(colunasDeVolta).toContain('cont_visualizacoes');
 
     const colunas = await knex('information_schema.columns')
       .where({ table_name: 'problema_encaminhamentos', column_name: 'falha_motivo' })

@@ -21,7 +21,15 @@ export const listarProblemasQuerySchema = z.object({
   raio: z.coerce.number().int().positive().max(50000).default(5000),
   causaId: z.coerce.number().int().positive().optional(),
   tags: z
-    .union([z.array(z.string()), z.string().transform((value) => [value])])
+    .union([
+      z.array(z.string()),
+      z.string().transform((valor) =>
+        valor
+          .split(',')
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+      ),
+    ])
     .optional(),
   tipo: z.enum(['problema', 'ponto_positivo', 'cultural']).optional(),
   status: z.enum(['ativo', 'em_analise', 'encaminhado', 'resolvido', 'removido']).optional(),

@@ -11,7 +11,6 @@ const envSchema = z.object({
   PORT: z.coerce.number().default(5000),
   DATABASE_URL: z.string().nonempty(),
   CORS_ORIGINS: z.string().default('http://localhost:3000'),
-  GOOGLE_API_KEY: z.string().nonempty(),
   JWT_SECRET: z.string().min(16, 'JWT_SECRET deve ter ao menos 16 caracteres.'),
   APP_PUBLIC_URL: z.string().default('http://localhost:19006'),
   MINIO_ENDPOINT: z.string().default('localhost'),

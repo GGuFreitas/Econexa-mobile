@@ -107,7 +107,7 @@ export function MobilizacaoDetailScreen() {
         <Card style={styles.infoCard}>
           <MaterialCommunityIcons name="account-group" size={20} color={theme.colors.primary} />
           <Text style={[styles.infoText, { color: theme.colors.onSurface }]}>
-            {mobilizacao.cont_participantes ?? 0} participantes
+            {mobilizacao.cont_participantes} participantes
           </Text>
         </Card>
 

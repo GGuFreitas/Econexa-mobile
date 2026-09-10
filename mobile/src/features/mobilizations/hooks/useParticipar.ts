@@ -17,8 +17,8 @@ export function useParticipar() {
       }
       return { prev };
     },
-    onError: (_e, _v, ctx) => {
-      if (ctx?.prev) qc.setQueryData(['mobilizacao', ctx.prev], ctx.prev);
+    onError: (_erro, id, ctx) => {
+      if (ctx?.prev) qc.setQueryData(['mobilizacao', id], ctx.prev);
     },
     onSettled: (_data, _error, id) => {
       qc.invalidateQueries({ queryKey: ['mobilizacao', id] });

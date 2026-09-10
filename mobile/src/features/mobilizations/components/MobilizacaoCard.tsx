@@ -38,7 +38,7 @@ export function MobilizacaoCard({ mobilizacao, onPress }: MobilizacaoCardProps) 
           <View style={styles.participantes}>
             <MaterialCommunityIcons name="account-group" size={14} color={theme.colors.primary} />
             <Text style={[styles.participantesText, { color: theme.colors.onSurfaceVariant }]}>
-              {mobilizacao.cont_participantes ?? 0}
+              {mobilizacao.cont_participantes}
             </Text>
           </View>
         </View>

@@ -15,7 +15,6 @@ export interface Problema {
   escopo: ProblemaEscopo;
   cont_apoios: number;
   cont_apoios_ponderados: number;
-  cont_visualizacoes: number;
   criado_em: Date;
   atualizado_em: Date;
   lat: number;
@@ -54,7 +53,7 @@ export interface AlterarStatusProblemaInput {
   role: string;
 }
 
-export interface ListarProblemasQuery {
+export interface FiltroProblemas {
   lat?: number;
   lng?: number;
   raio?: number;
@@ -63,6 +62,15 @@ export interface ListarProblemasQuery {
   tipo?: ProblemaTipo;
   status?: ProblemaStatus;
   escopo?: ProblemaEscopo;
+}
+
+export interface ListarProblemasQuery extends FiltroProblemas {
   pagina?: number;
   limite?: number;
+}
+
+export interface EstatisticasProblemas {
+  total: number;
+  porCausa: { causa_id: number; total: number }[];
+  porTipo: { tipo: string; total: number }[];
 }
