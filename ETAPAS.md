@@ -548,6 +548,73 @@ dentro da transação.
 - `npm run test` continua verde **sem nenhum serviço no ar**. `npm run test:integration`
   ainda exige `docker compose up postgres` — Testcontainers é o PR seguinte.
 
+## PR-B1 — Testcontainers e CI
+
+Milestone **só de infraestrutura de teste e build**. Nenhuma mudança de comportamento de
+produto: nenhum handler, rota, schema ou migration foi tocado.
+
+### A integração sobe o próprio banco
+
+- `preparar.ts` (o `globalSetup`) passou a subir um contêiner **`postgis/postgis:15-3.4`**
+  via `@testcontainers/postgresql`, escrever a URI dele em `process.env.DATABASE_URL`,
+  recriar o banco e rodar as migrations. Um `teardown` novo derruba o contêiner.
+- A imagem **tem** de ser a com PostGIS: a migration `002` faz `CREATE EXTENSION postgis`.
+  Um `postgres:15` puro falharia no `globalSetup`.
+- **A armadilha que quebrava tudo:** `test.env.DATABASE_URL` no
+  `vitest.integration.config.ts` é resolvido no *load* da config — antes do
+  `globalSetup` — e injetado no `process.env` de cada worker. Ele sobrescreveria a URI
+  dinâmica do contêiner e a suíte inteira falaria com o banco errado (ou com nenhum).
+  Saiu do `test.env`, junto com o `process.env.DATABASE_URL = ...` que a config fazia no
+  topo. As demais variáveis continuam lá porque são estáticas.
+- A escapatória `DATABASE_URL_ITEST` foi mantida: se estiver definida, nenhum contêiner
+  sobe e a suíte usa aquele banco. É o caminho para apontar para o Postgres do compose.
+- `npm run test:integration` **não exige mais `docker compose up`** — exige Docker.
+- **`npm run test` continua verde sem Docker nenhum rodando.** Foi verificado com o
+  `econexa-postgres` do compose parado: 11 arquivos, 101 testes.
+
+### CI enxergando banco real
+
+`.github/workflows/ci.yml` ganhou um quarto job, `integration`, com os três atuais
+intactos. O runner do GitHub já traz Docker, então **não há bloco `services:`**: quem
+sobe o banco é o Testcontainers, com a mesma imagem que roda na máquina de quem
+desenvolve — um jeito a menos de o CI e o local divergirem.
+
+### Cobertura que passou a existir
+
+O código espacial já estava correto desde o M9.5; o que faltava era **prova de
+comportamento**. O que já existia (distância em metros, dedupe a 20 m / 2 km,
+`uq_denuncias_problema_usuario` e `uq_encaminhamento_aberto` recusando com `23505`,
+apoio concorrente com uma linha e contador 1, ciclo `migrate → rollback → migrate` sobre
+dados sujos) foi conferido e continua passando. Entrou o que faltava, em
+`src/tests/integracao/esquema.itest.ts`:
+
+- **CHECK de `problema_eventos.tipo`** direto no banco: os 11 tipos emitidos passam,
+  um tipo inventado e um tipo em minúsculas são recusados com `23514`.
+- **`EXPLAIN` confirmando os índices `(geom::geography)`.** O teste não escreve a
+  consulta à mão: espia `dbPool.query`, captura o SQL que `listarProblemas` e
+  `findNearbyProblema` **realmente** executaram e roda `EXPLAIN` em cima dele, sobre
+  4.001 linhas com `ANALYZE` feito. Afirma que o plano cita `idx_problemas_geom_geog` e
+  que **não** há `Seq Scan on problemas`. Quebra se alguém trocar o predicado por um que
+  não case com o índice de expressão — que é exatamente o defeito que o M9.5 corrigiu.
+- `listarEventos` **não** foi coberto: o domínio saiu no PR-A.
+
+### Build não leva teste
+
+`tsconfig.json` incluía `src/**/*` sem `exclude`, então `*.spec.ts` e `*.itest.ts` iam
+para o `dist/` — 12 e 11 arquivos, respectivamente. Com o Testcontainers isso piorava:
+`dist/tests/integracao/preparar.js` passaria a importar `@testcontainers/postgresql`,
+uma **devDependency**, dentro do bundle de produção.
+
+**Decisão: `tsconfig.json` ficou como está e entrou um `tsconfig.build.json`** que herda
+tudo e exclui `src/**/*.spec.ts`, `src/**/*.itest.ts` e `src/tests/**`. Só o `build`
+usa o novo. O motivo de não simplesmente pôr `exclude` no `tsconfig.json`: ele é o que
+`npm run typecheck` e o CI usam, e os arquivos de teste **precisam** continuar sendo
+checados por tipo — o vitest transpila com esbuild, que não checa tipo nenhum. Excluir
+ali trocaria peso morto no `dist/` por um buraco de verificação.
+
+Depois da mudança, `npm run build` produz um `dist/` com zero `*.spec.js`, zero
+`*.itest.js` e nenhuma pasta `tests/`.
+
 ## Planejado — M10, M11, M12
 
 Os três estão **apenas planejados**. Nada deles foi implementado.
@@ -641,7 +708,6 @@ dono** — o domínio `eventos` inteiro saiu, então o caminho não existe mais.
 - **`specialist` hoje não faz nada.** Depois do PR-A ele tem exatamente as mesmas
   permissões de `citizen`; o que sobra é o rótulo no perfil. Dar sentido ao papel
   depende de verificação por certificado, que segue fora de escopo.
-- **Specs e testes de integração são compilados para `dist/`.** `tsconfig.json` inclui
-  `src/**/*` sem `exclude`, então `*.spec.ts` já ia para o build antes deste PR e agora
-  `*.itest.ts` vai junto. Não quebra nada (o Dockerfile instala devDependencies), mas é
-  peso morto na imagem.
+- **A suíte de integração exige Docker na máquina.** Não é uma dívida a quitar, é o
+  preço de testar PostGIS de verdade — mas quem não tem Docker no ambiente roda só
+  `npm run test`.

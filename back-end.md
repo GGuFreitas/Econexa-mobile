@@ -536,20 +536,30 @@ autorização de quem pediu, de modo que o app só ofereça o que a API aceita.
 
 ## 17. Testes: duas suítes, dois comandos
 
-O CI (`.github/workflows/ci.yml`) **não sobe serviço nenhum** — sem Postgres, sem
-PostGIS, sem MinIO, sem Mailpit. Por isso as suítes são separadas por glob e por script.
+As suítes são separadas por glob e por script, porque exigem coisas diferentes do
+ambiente.
 
-| Comando | Glob | Precisa de serviço? |
+| Comando | Glob | O que precisa |
 |---|---|---|
-| `npm run test` | `src/**/*.spec.ts` | **Não.** `dbPool` é mockado inteiro; storage e e-mail também. |
-| `npm run test:integration` | `src/**/*.itest.ts` | **Sim**: Postgres com PostGIS no ar. |
+| `npm run test` | `src/**/*.spec.ts` | **Nada no ar.** `dbPool` é mockado inteiro; storage e e-mail também. |
+| `npm run test:integration` | `src/**/*.itest.ts` | **Docker.** O Postgres com PostGIS é subido pela própria suíte. |
 
-- `npm run test` é o que o CI roda e precisa continuar verde sem nada no ar. Nunca
-  adicione um teste que fale com banco como `.spec.ts`: o glob é único e derruba o CI
-  inteiro.
-- `npm run test:integration` usa `vitest.integration.config.ts`: recria o banco
-  `econexa_itest` (ou `DATABASE_URL_ITEST`), roda as migrations no `globalSetup` e
-  executa os arquivos em série (`fileParallelism: false`, banco compartilhado).
+- `npm run test` precisa continuar verde **sem Docker nenhum rodando**. Nunca adicione
+  um teste que fale com banco como `.spec.ts`: o glob é único e derruba o CI inteiro.
+- `npm run test:integration` usa `vitest.integration.config.ts` e **não depende mais de
+  `docker compose up`**: o `globalSetup` (`src/tests/integracao/preparar.ts`) sobe um
+  contêiner `postgis/postgis:15-3.4` via `@testcontainers/postgresql`, escreve a URI
+  dele em `process.env.DATABASE_URL`, recria o banco, roda as migrations, e o
+  `teardown` derruba o contêiner. A imagem **tem** de ser a com PostGIS: a migration
+  `002` faz `CREATE EXTENSION postgis`.
+- A escapatória continua existindo: com `DATABASE_URL_ITEST` definida, nenhum contêiner
+  sobe e a suíte usa aquele banco (útil para apontar para o Postgres do compose).
+- **`DATABASE_URL` não pode voltar para o `test.env` do config.** `test.env` é resolvido
+  no *load* da config, antes do `globalSetup`, e é injetado no `process.env` dos workers
+  — ou seja, sobrescreveria a URI dinâmica do contêiner e a suíte inteira falaria com o
+  banco errado. As demais variáveis (`JWT_SECRET`, `CORS_ORIGINS`, ...) seguem no
+  `test.env` porque são estáticas.
+- Os arquivos rodam em série (`fileParallelism: false`): o banco é compartilhado.
 - Só o **Postgres** é real na integração. Storage (MinIO) e e-mail (SMTP) continuam
   mockados: o que está sob teste ali é o comportamento do banco — unidade real de
   distância, atomicidade do apoio, unicidade da denúncia, índice parcial do
@@ -563,4 +573,39 @@ PostGIS, sem MinIO, sem Mailpit. Por isso as suítes são separadas por glob e p
   `expect(sql).toContain('ST_DWithin')` passa com raio 15, 15000 ou 0,0000001 — é
   estruturalmente incapaz de detectar erro de unidade. Só um teste que insere dois
   pontos a distância conhecida e confere metros prova a correção.
-- O workflow do CI **não foi alterado**: subir Postgres lá é decisão separada.
+- O CI (`.github/workflows/ci.yml`) tem quatro jobs: `typecheck`, `lint`, `test` e
+  `integration`. O runner do GitHub já vem com Docker, então o job de integração é só
+  `npm ci` + `npm run test:integration` — **sem bloco `services:`**, porque quem sobe o
+  banco é o Testcontainers, com a mesma imagem que roda na máquina de quem desenvolve.
+
+### 17.1 O que a suíte de integração cobre
+
+| Prova | Onde |
+|---|---|
+| distância em metros de verdade em `listarProblemas` e `findNearbyProblema` | `problemas.itest.ts` |
+| dedupe deduplicando a ~20 m e criando novo a ~2 km | `problemas.itest.ts` |
+| autorização de status do problema (autor, `specialist`, `admin`) | `problemas.permissoes.itest.ts` |
+| autorização e transições de mobilização | `mobilizacoes.itest.ts` |
+| `uq_denuncias_problema_usuario` recusando de fato (`23505`) | `denuncias.itest.ts` |
+| índice único parcial `uq_encaminhamento_aberto` recusando de fato (`23505`) | `encaminhamentos.itest.ts` |
+| CHECK de `problema_eventos.tipo` aceitando os 11 e recusando o resto (`23514`) | `esquema.itest.ts` |
+| `EXPLAIN` confirmando que a listagem e o dedupe usam `idx_problemas_geom_geog` | `esquema.itest.ts` |
+| apoio concorrente resultando em uma linha e contador 1 | `apoios.itest.ts` |
+| ciclo `migrate → rollback → migrate` sobre dados sujos plantados | `migracoes.itest.ts` |
+| cadastro que ignora `role`, `429` de login/cadastro, `404` das rotas removidas | `auth.itest.ts`, `rotas.itest.ts` |
+
+O teste de `EXPLAIN` não escreve a consulta à mão: espia o `dbPool.query`, captura o SQL
+que `listarProblemas`/`findNearbyProblema` **realmente** executaram e roda `EXPLAIN` em
+cima dele, sobre uma tabela com 4.001 linhas e `ANALYZE` feito. Assim ele quebra se
+alguém trocar o predicado por um que não case com o índice de expressão.
+
+### 17.2 Build não leva teste
+
+`tsconfig.json` continua com `include: ["src/**/*"]` — é ele que o `npm run typecheck`
+e o CI usam, e os arquivos de teste **precisam** ser checados por tipo (o vitest usa
+esbuild, que não checa tipo nenhum). Quem constrói é o `tsconfig.build.json`, que herda
+tudo e exclui `src/**/*.spec.ts`, `src/**/*.itest.ts` e `src/tests/**`.
+
+Sem isso o `dist/` de produção carregava 12 `*.spec.js` e 11 `*.itest.js` — e, depois do
+Testcontainers, passaria a carregar um `preparar.js` que importa `@testcontainers/postgresql`,
+uma devDependency.
