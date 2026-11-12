@@ -5,7 +5,8 @@ import { ZodError } from 'zod';
 export type CodigoDeErro =
   | 'CONTA_BLOQUEADA'
   | 'SESSAO_INVALIDA'
-  | 'SESSAO_COMPROMETIDA';
+  | 'SESSAO_COMPROMETIDA'
+  | 'CODIGO_INVALIDO';
 
 export class AppError extends Error {
   constructor(

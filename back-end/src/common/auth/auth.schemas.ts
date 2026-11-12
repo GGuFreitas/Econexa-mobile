@@ -37,9 +37,24 @@ export const loginSchema = z.object(
 
 export const refreshTokenSchema = z.object({ refreshToken }, CORPO_INVALIDO);
 
+export const esqueciSenhaSchema = z.object({ email }, CORPO_INVALIDO);
+
+export const redefinirSenhaSchema = z.object(
+  {
+    email,
+    code: z
+      .string({ error: 'Informe o código.' })
+      .trim()
+      .regex(/^\d{6}$/, 'O código tem 6 dígitos.'),
+    password: senhaNova,
+  },
+  CORPO_INVALIDO,
+);
+
 export const confirmarEmailQuerySchema = z.object({
   token: z.string().min(1).max(512),
 });
 
 export type CadastroSchema = z.infer<typeof cadastroSchema>;
 export type LoginSchema = z.infer<typeof loginSchema>;
+export type RedefinirSenhaSchema = z.infer<typeof redefinirSenhaSchema>;
