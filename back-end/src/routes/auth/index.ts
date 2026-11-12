@@ -8,6 +8,7 @@ import {
   esqueciSenhaLimiter,
   esqueciSenhaPorEmailLimiter,
   exigirCota,
+  googleLimiter,
   loginLimiter,
   porEmail,
   porOrigem,
@@ -22,6 +23,7 @@ import {
   cadastroSchema,
   confirmarEmailQuerySchema,
   esqueciSenhaSchema,
+  googleSchema,
   loginSchema,
   redefinirSenhaSchema,
   refreshTokenSchema,
@@ -29,6 +31,7 @@ import {
 import {
   cadastrarUsuario,
   confirmarEmail,
+  entrarComGoogle,
   entrarComSenha,
   obterUsuarioAtual,
   redefinirSenha,
@@ -123,6 +126,15 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     async (request, reply) => {
       const body = parse(redefinirSenhaSchema, request.body);
       return ok(reply, await redefinirSenha(body));
+    },
+  );
+
+  app.post(
+    '/google',
+    { preHandler: rateLimitGuard(googleLimiter, porOrigem) },
+    async (request, reply) => {
+      const { idToken } = parse(googleSchema, request.body);
+      return ok(reply, await entrarComGoogle(idToken));
     },
   );
 }

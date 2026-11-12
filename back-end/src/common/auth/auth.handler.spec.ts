@@ -4,9 +4,11 @@ import jwt from 'jsonwebtoken';
 import { dbPool } from '@config/database.js';
 import { env } from '@config/env.js';
 import { enviarEmail } from '@shared/email.js';
+import { verificarIdTokenGoogle } from '@shared/google.js';
 import {
   cadastrarUsuario,
   confirmarEmail,
+  entrarComGoogle,
   entrarComSenha,
   redefinirSenha,
   solicitarRedefinicaoDeSenha,
@@ -26,6 +28,10 @@ vi.mock('@shared/email.js', () => ({
   enviarEmail: vi.fn(),
 }));
 
+vi.mock('@shared/google.js', () => ({
+  verificarIdTokenGoogle: vi.fn(),
+}));
+
 vi.mock('@node-rs/argon2', async (importOriginal) => {
   const real = await importOriginal<typeof import('@node-rs/argon2')>();
   return { ...real, hash: vi.fn(real.hash), verify: vi.fn(real.verify) };
@@ -35,6 +41,7 @@ type Regra = [trecho: string, linhas: (params: unknown[]) => unknown[]];
 
 const mockQuery = dbPool.query as unknown as ReturnType<typeof vi.fn>;
 const mockEnviarEmail = vi.mocked(enviarEmail);
+const mockVerificarGoogle = vi.mocked(verificarIdTokenGoogle);
 const mockHash = vi.mocked(hash);
 const mockVerify = vi.mocked(verify);
 
@@ -57,6 +64,7 @@ function linhaUsuario(extra: Record<string, unknown> = {}) {
     role: 'citizen',
     peso_voto: 1,
     email_verificado: false,
+    tem_senha: true,
     bloqueado_em: null,
     sessao_versao: 0,
     ...extra,
@@ -77,6 +85,7 @@ beforeEach(() => {
   mockQuery.mockReset();
   mockEnviarEmail.mockReset();
   mockEnviarEmail.mockResolvedValue({ from: 'Mutira', to: 'caixa-dev', subject: 's', text: 't' });
+  mockVerificarGoogle.mockReset();
 });
 
 afterEach(() => {
@@ -127,7 +136,7 @@ describe('cadastro', () => {
     expect(paramsDoUsuario.slice(0, 2)).toEqual(['Ana', 'ana@exemplo.invalid']);
     expect(String(paramsDoUsuario[2])).toMatch(/^\$argon2id\$/);
     expect(sessao).toMatchObject({ tokenType: 'Bearer', expiresIn: env.ACCESS_TOKEN_TTL_SECONDS });
-    expect(sessao.user).toMatchObject({ email_verified: false, role: 'citizen' });
+    expect(sessao.user).toMatchObject({ email_verified: false, has_password: true, role: 'citizen' });
 
     const mensagem = mockEnviarEmail.mock.calls[0][0];
     const token = /verify-email\?token=([\w-]+)/.exec(mensagem.corpo)![1];
@@ -213,7 +222,7 @@ describe('login', () => {
     expect(sessao.user).not.toHaveProperty('senha');
   });
 
-  it('senha errada e e-mail inexistente dão o mesmo 401', async () => {
+  it('senha errada, e-mail inexistente e conta só-Google dão o mesmo 401', async () => {
     bancoFalso(['senha FROM users WHERE email', () => credenciais()]);
     const senhaErrada = await erroDe(
       entrarComSenha({ email: 'ana@exemplo.invalid', password: 'senha-errada' }),
@@ -224,12 +233,18 @@ describe('login', () => {
       entrarComSenha({ email: 'ninguem@exemplo.invalid', password: 'senha-certa' }),
     );
 
+    bancoFalso(['senha FROM users WHERE email', () => credenciais({ senha: null, tem_senha: false })]);
+    const soGoogle = await erroDe(
+      entrarComSenha({ email: 'ana@exemplo.invalid', password: 'senha-certa' }),
+    );
+
     expect(senhaErrada).toEqual({
       statusCode: 401,
       message: 'E-mail ou senha incorretos.',
       code: undefined,
     });
     expect(inexistente).toEqual(senhaErrada);
+    expect(soGoogle).toEqual(senhaErrada);
   });
 
   it('hash ilegível no banco conta como senha errada, não como 500', async () => {
@@ -337,5 +352,56 @@ describe('esqueci minha senha', () => {
     });
     expect(codigoErrado).toEqual(semConta);
     expect(consultasCom('SET usado_em = NOW() WHERE id')).toHaveLength(0);
+  });
+});
+
+describe('Google: regras de decisão', () => {
+  it('sem GOOGLE_CLIENT_IDS responde 503 sem nem olhar o token', async () => {
+    const configurados = env.GOOGLE_CLIENT_IDS;
+    env.GOOGLE_CLIENT_IDS = [];
+    try {
+      await expect(entrarComGoogle('id-token')).rejects.toMatchObject({
+        statusCode: 503,
+        code: 'GOOGLE_INDISPONIVEL',
+        message: 'Login com Google não está configurado.',
+      });
+      expect(mockVerificarGoogle).not.toHaveBeenCalled();
+    } finally {
+      env.GOOGLE_CLIENT_IDS = configurados;
+    }
+  });
+
+  it('sem e-mail confirmado pelo Google, conta existente responde 409 antes de revelar bloqueio', async () => {
+    mockVerificarGoogle.mockResolvedValue({
+      sub: 'g-1',
+      email: 'ana@exemplo.invalid',
+      emailVerificado: false,
+    });
+    bancoFalso(['FROM users WHERE email', () => [linhaUsuario({ bloqueado_em: new Date() })]]);
+
+    await expect(entrarComGoogle('id-token')).rejects.toMatchObject({ statusCode: 409 });
+    expect(consultasCom('INSERT INTO usuario_oauth_contas')).toHaveLength(0);
+  });
+
+  it('dois toques simultâneos: o perdedor da corrida pelo UNIQUE refaz e entra pela conta vinculada', async () => {
+    mockVerificarGoogle.mockResolvedValue({
+      sub: 'g-1',
+      email: 'nova@exemplo.invalid',
+      emailVerificado: true,
+    });
+    let tentativas = 0;
+    bancoFalso(
+      ['FROM usuario_oauth_contas', () => (tentativas > 0 ? [linhaUsuario({ tem_senha: false })] : [])],
+      ['INSERT INTO users', () => {
+        tentativas += 1;
+        throw Object.assign(new Error('duplicate key'), { code: '23505' });
+      }],
+      ['INSERT INTO refresh_tokens', () => [{ id: 1, sessao_versao: 0 }]],
+    );
+
+    const sessao = await entrarComGoogle('id-token');
+
+    expect(sessao.user.id).toBe(7);
+    expect(consultasCom('INSERT INTO users')).toHaveLength(1);
   });
 });

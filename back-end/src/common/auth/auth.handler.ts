@@ -1,6 +1,7 @@
 import { AppError } from '@shared/errors.js';
 import { contaBloqueada } from '@shared/auth.js';
 import { enviarEmail, type MensagemEmail } from '@shared/email.js';
+import { verificarIdTokenGoogle, type PerfilGoogle } from '@shared/google.js';
 import { emTransacao, type Executor } from '@shared/transacao.js';
 import { dbPool } from '@config/database.js';
 import { env } from '@config/env.js';
@@ -21,6 +22,7 @@ import type {
   RedefinicaoDeSenhaInput,
   ResultadoDaConfirmacao,
   Sessao,
+  SessaoComAviso,
   UsuarioRow,
 } from './auth.types.js';
 
@@ -107,7 +109,7 @@ export async function cadastrarUsuario(input: CadastroInput): Promise<Sessao> {
 export async function entrarComSenha(input: LoginInput): Promise<Sessao> {
   const usuario = await sql.buscarCredenciaisPorEmail(normalizarEmail(input.email));
 
-  if (!usuario) {
+  if (!usuario || !usuario.senha) {
     await conferirSenhaFicticia(input.password);
     throw credenciaisInvalidas();
   }
@@ -203,4 +205,61 @@ export async function redefinirSenha(input: RedefinicaoDeSenhaInput): Promise<Se
     await revogarTodasAsSessoes(usuario.id, executor);
     return emitirSessao(atualizado, executor);
   });
+}
+
+async function decidirEntradaComGoogle(
+  perfil: PerfilGoogle,
+  executor: Executor,
+): Promise<SessaoComAviso> {
+  const email = normalizarEmail(perfil.email);
+
+  const vinculado = await sql.buscarUsuarioPorContaGoogle(perfil.sub, executor);
+  if (vinculado) {
+    if (vinculado.bloqueado_em) throw contaBloqueada();
+    return emitirSessao(vinculado, executor);
+  }
+
+  const existente = await sql.travarUsuarioPorEmail(email, executor);
+  if (existente) {
+    if (!perfil.emailVerificado) {
+      throw new AppError(
+        'Já existe uma conta com este e-mail, e o Google não confirmou que ele é seu.',
+        409,
+      );
+    }
+    if (existente.bloqueado_em) throw contaBloqueada();
+
+    if (existente.email_verificado) {
+      await sql.vincularContaGoogle(existente.id, perfil.sub, executor);
+      return emitirSessao(existente, executor);
+    }
+
+    const reivindicado = await sql.desativarSenhaEConfirmarEmail(existente.id, executor);
+    await revogarTodasAsSessoes(existente.id, executor);
+    await sql.vincularContaGoogle(existente.id, perfil.sub, executor);
+    return { ...(await emitirSessao(reivindicado, executor)), aviso: 'SENHA_DESATIVADA' };
+  }
+
+  const nome = (perfil.nome ?? email.split('@')[0]).slice(0, 255);
+  const criado = await sql.inserirUsuario(
+    { nome, email, senhaHash: null, emailVerificado: perfil.emailVerificado },
+    executor,
+  );
+  await sql.vincularContaGoogle(criado.id, perfil.sub, executor);
+  return emitirSessao(criado, executor);
+}
+
+export async function entrarComGoogle(idToken: string): Promise<SessaoComAviso> {
+  if (env.GOOGLE_CLIENT_IDS.length === 0) {
+    throw new AppError('Login com Google não está configurado.', 503, 'GOOGLE_INDISPONIVEL');
+  }
+
+  const perfil = await verificarIdTokenGoogle(idToken);
+
+  try {
+    return await emTransacao((executor) => decidirEntradaComGoogle(perfil, executor));
+  } catch (erro) {
+    if (!violacaoDeUnicidade(erro)) throw erro;
+    return emTransacao((executor) => decidirEntradaComGoogle(perfil, executor));
+  }
 }

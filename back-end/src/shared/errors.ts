@@ -6,7 +6,8 @@ export type CodigoDeErro =
   | 'CONTA_BLOQUEADA'
   | 'SESSAO_INVALIDA'
   | 'SESSAO_COMPROMETIDA'
-  | 'CODIGO_INVALIDO';
+  | 'CODIGO_INVALIDO'
+  | 'GOOGLE_INDISPONIVEL';
 
 export class AppError extends Error {
   constructor(

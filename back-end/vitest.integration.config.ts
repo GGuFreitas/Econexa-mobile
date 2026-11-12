@@ -27,6 +27,7 @@ export default defineConfig({
       PORT: '5000',
       CORS_ORIGINS: 'http://localhost:19006,http://localhost:3000',
       JWT_SECRET: 'test-secret-key-123456',
+      GOOGLE_CLIENT_IDS: 'cliente-web-teste.apps.googleusercontent.com',
     },
   },
 });
