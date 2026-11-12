@@ -3,9 +3,9 @@ import { useAppSelector } from '@store/hooks';
 import LoginScreen from '@features/auth/screens/LoginScreen';
 
 export function AuthGuard({ children }: { children: ReactNode }) {
-  const token = useAppSelector((state) => state.auth.token);
+  const autenticado = useAppSelector((state) => state.auth.situacao === 'autenticado');
 
-  if (!token) {
+  if (!autenticado) {
     return <LoginScreen />;
   }
 

@@ -13,7 +13,7 @@ describe('mensagemDeErro', () => {
 
   it('trata 429 como excesso de tentativas', () => {
     expect(mensagemDeErro(new ApiError('Muitas requisições.', 429), PADRAO)).toBe(
-      'Muitas tentativas seguidas. Aguarde um minuto e tente de novo.',
+      'Muitas tentativas seguidas. Aguarde um pouco e tente de novo.',
     );
   });
 

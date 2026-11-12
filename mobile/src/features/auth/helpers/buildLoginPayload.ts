@@ -1,6 +1,8 @@
+import { normalizarEmail } from '../utils/email';
+
 export function buildLoginPayload(email: string, password: string) {
   return {
-    email: email.trim().toLowerCase(),
+    email: normalizarEmail(email),
     password,
   };
 }
