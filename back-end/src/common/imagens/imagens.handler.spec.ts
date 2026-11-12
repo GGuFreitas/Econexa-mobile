@@ -1,4 +1,5 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import sharp from 'sharp';
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dbPool } from '@config/database.js';
 import { enviarObjeto, removerObjeto } from '@shared/storage.js';
 import {
@@ -36,6 +37,18 @@ const webp = Buffer.concat([
   Buffer.from('WEBP', 'ascii'),
   Buffer.alloc(64),
 ]);
+
+let fotoJpeg: Buffer;
+let fotoPng: Buffer;
+
+beforeAll(async () => {
+  const quadro = { width: 64, height: 48, channels: 3 as const, background: '#3a7d44' };
+  fotoJpeg = await sharp({ create: quadro })
+    .jpeg()
+    .withExif({ IFD0: { Make: 'MARCADOR-FABRICANTE' } })
+    .toBuffer();
+  fotoPng = await sharp({ create: quadro }).png().toBuffer();
+});
 
 const problemaDoAutor = { id: 5, usuario_id: 7, status: 'ativo' };
 
@@ -79,7 +92,11 @@ describe('enviarEvidenciaProblema', () => {
     mockRemoverObjeto.mockReset();
   });
 
-  it('sobe a imagem, registra a evidência e emite EVIDENCIA_ADICIONADA', async () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('sobe a imagem já normalizada, registra a evidência e emite EVIDENCIA_ADICIONADA', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
       .mockResolvedValueOnce({ rows: [{ total: 0 }] })
@@ -93,11 +110,14 @@ describe('enviarEvidenciaProblema', () => {
       role: 'citizen',
       nomeArquivo: 'foto.jpg',
       mimetype: 'image/jpeg',
-      conteudo: jpeg,
+      conteudo: fotoJpeg,
     });
 
+    const [chave, enviado, tipo] = mockEnviarObjeto.mock.calls[0];
     expect(imagem.id).toBe(12);
-    expect(mockEnviarObjeto.mock.calls[0][0]).toMatch(/^problema\/5\/.+\.jpg$/);
+    expect(chave).toMatch(/^problema\/5\/.+\.jpg$/);
+    expect(tipo).toBe('image/jpeg');
+    expect((await sharp(enviado).metadata()).exif).toBeUndefined();
     expect(mockQuery.mock.calls[2][0]).toContain('INSERT INTO imagens');
     expect(mockQuery.mock.calls[3][1]).toEqual([
       5,
@@ -122,7 +142,7 @@ describe('enviarEvidenciaProblema', () => {
       role: 'citizen',
       nomeArquivo: 'foto.jpg',
       mimetype: 'image/jpeg',
-      conteudo: jpeg,
+      conteudo: fotoJpeg,
     });
 
     expect(imagem.id).toBe(14);
@@ -142,9 +162,44 @@ describe('enviarEvidenciaProblema', () => {
         role: 'citizen',
         nomeArquivo: 'foto.jpg',
         mimetype: 'image/jpeg',
-        conteudo: jpeg,
+        conteudo: fotoJpeg,
       }),
     ).rejects.toThrow('Apoie este problema para poder adicionar evidência a ele.');
+    expect(mockEnviarObjeto).not.toHaveBeenCalled();
+  });
+
+  it('autoriza antes de decodificar: sem permissão é 403 mesmo com arquivo que não decodifica', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [problemaDoAutor] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    await expect(
+      enviarEvidenciaProblema({
+        problemaId: 5,
+        usuarioId: 99,
+        role: 'citizen',
+        nomeArquivo: 'foto.jpg',
+        mimetype: 'image/jpeg',
+        conteudo: jpeg,
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it('recusa com 415 o arquivo que não decodifica, antes de contar imagens e de tocar no storage', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockQuery.mockResolvedValueOnce({ rows: [problemaDoAutor] });
+
+    await expect(
+      enviarEvidenciaProblema({
+        problemaId: 5,
+        usuarioId: 7,
+        role: 'citizen',
+        nomeArquivo: 'foto.jpg',
+        mimetype: 'image/jpeg',
+        conteudo: jpeg,
+      }),
+    ).rejects.toMatchObject({ statusCode: 415, message: 'O arquivo enviado não é uma imagem válida.' });
+    expect(mockQuery).toHaveBeenCalledTimes(1);
     expect(mockEnviarObjeto).not.toHaveBeenCalled();
   });
 
@@ -162,7 +217,7 @@ describe('enviarEvidenciaProblema', () => {
       role: 'admin',
       nomeArquivo: 'foto.png',
       mimetype: 'image/png',
-      conteudo: png,
+      conteudo: fotoPng,
     });
 
     expect(imagem.id).toBe(13);
@@ -185,7 +240,7 @@ describe('enviarEvidenciaProblema', () => {
         role: 'citizen',
         nomeArquivo: 'foto.jpg',
         mimetype: 'image/jpeg',
-        conteudo: jpeg,
+        conteudo: fotoJpeg,
       }),
     ).rejects.toThrow('Problema não encontrado.');
     expect(mockEnviarObjeto).not.toHaveBeenCalled();
@@ -219,7 +274,7 @@ describe('enviarEvidenciaProblema', () => {
         role: 'citizen',
         nomeArquivo: 'foto.jpg',
         mimetype: 'image/jpeg',
-        conteudo: jpeg,
+        conteudo: fotoJpeg,
       }),
     ).rejects.toThrow('falha no insert');
     expect(mockRemoverObjeto).toHaveBeenCalledTimes(1);
