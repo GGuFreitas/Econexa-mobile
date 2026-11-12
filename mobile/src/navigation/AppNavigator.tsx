@@ -3,6 +3,8 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthGuard } from '@navigation/AuthGuard';
 import RegisterScreen from '@features/auth/screens/RegisterScreen';
+import EsqueciSenhaScreen from '@features/auth/screens/EsqueciSenhaScreen';
+import RedefinirSenhaScreen from '@features/auth/screens/RedefinirSenhaScreen';
 import HomeScreen from '@features/home/screens/HomeScreen';
 import { CriarProblemaScreen } from '@features/problemas/screens/CriarProblemaScreen';
 import { DetalheProblemaScreen } from '@features/problemas/screens/DetalheProblemaScreen';
@@ -14,6 +16,8 @@ import { MobilizacaoDetailScreen } from '@features/mobilizations/screens/Mobiliz
 export type RootStackParamList = {
   Main: undefined;
   Cadastro: undefined;
+  EsqueciSenha: undefined;
+  RedefinirSenha: { email: string };
   CriarProblema: undefined;
   DetalheProblema: { id: number };
   CriarMobilizacao: { problemaId: number };
@@ -122,6 +126,8 @@ export default function AppNavigator() {
     <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Main" component={MapaStack} />
       <Stack.Screen name="Cadastro" component={RegisterScreen} />
+      <Stack.Screen name="EsqueciSenha" component={EsqueciSenhaScreen} />
+      <Stack.Screen name="RedefinirSenha" component={RedefinirSenhaScreen} />
       <Stack.Screen name="CriarProblema" component={CriarGuarded} />
       <Stack.Screen name="DetalheProblema" component={DetalheGuarded} />
       <Stack.Screen name="CriarMobilizacao" component={CriarMobilizacaoGuarded} />
