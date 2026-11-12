@@ -6,11 +6,6 @@ export interface ClusterGrupo {
   pontos: Problema[];
 }
 
-/**
- * Clustering simples por grade (grid) baseado no delta visível do mapa.
- * Células maiores quando zoom está longe -> mais agrupamento.
- * Células menores quando zoom está perto -> pontos separados.
- */
 export function clusterizar(problemas: Problema[], cellSizeGraus: number): ClusterGrupo[] {
   const celulas = new Map<string, ClusterGrupo>();
 
