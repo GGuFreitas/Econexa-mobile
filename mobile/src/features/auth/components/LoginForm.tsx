@@ -5,10 +5,11 @@ import { View, StyleSheet } from 'react-native';
 import { Button } from '@shared/ui/Button';
 import { TextInput } from '@shared/ui/TextInput';
 import { spacing } from '@shared/theme/spacing';
+import { emailSchema } from '../utils/validacao';
 
 const loginSchema = z.object({
-  email: z.string().email('Digite um email válido'),
-  password: z.string().min(6, 'A senha precisa ter ao menos 6 caracteres'),
+  email: emailSchema,
+  password: z.string().min(1, 'Digite sua senha'),
 });
 
 export type LoginFormValues = {

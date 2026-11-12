@@ -5,12 +5,13 @@ import { View, StyleSheet } from 'react-native';
 import { Button } from '@shared/ui/Button';
 import { TextInput } from '@shared/ui/TextInput';
 import { spacing } from '@shared/theme/spacing';
+import { emailSchema, novaSenhaSchema } from '../utils/validacao';
 
 const registerSchema = z
   .object({
-    nome: z.string().min(2, 'Informe seu nome completo'),
-    email: z.string().email('Digite um email válido'),
-    password: z.string().min(6, 'A senha precisa ter ao menos 6 caracteres'),
+    nome: z.string().trim().min(2, 'Informe seu nome completo'),
+    email: emailSchema,
+    password: novaSenhaSchema,
     confirmacao: z.string(),
   })
   .refine((valores) => valores.password === valores.confirmacao, {
@@ -27,10 +28,9 @@ export type RegisterFormValues = {
 
 interface RegisterFormProps {
   onSubmit: (valores: RegisterFormValues) => void | Promise<void>;
-  submitting?: boolean;
 }
 
-export function RegisterForm({ onSubmit, submitting }: RegisterFormProps) {
+export function RegisterForm({ onSubmit }: RegisterFormProps) {
   const {
     control,
     handleSubmit,
@@ -79,7 +79,7 @@ export function RegisterForm({ onSubmit, submitting }: RegisterFormProps) {
         name="password"
         render={({ field: { value, onChange, onBlur } }) => (
           <TextInput
-            label="Senha"
+            label="Senha (mínimo de 8 caracteres)"
             secureTextEntry
             value={value}
             onChangeText={onChange}
@@ -108,7 +108,8 @@ export function RegisterForm({ onSubmit, submitting }: RegisterFormProps) {
 
       <Button
         onPress={handleSubmit(onSubmit)}
-        loading={isSubmitting || submitting}
+        loading={isSubmitting}
+        disabled={isSubmitting}
         style={styles.submit}
       >
         Criar conta
