@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLogin } from '@features/auth/hooks/useLogin';
 import { LoginForm, type LoginFormValues } from '@features/auth/components/LoginForm';
+import { BotaoGoogle } from '@features/auth/components/BotaoGoogle';
 import { MensagemDeRetorno } from '@features/auth/components/MensagemDeRetorno';
 import { Button } from '@shared/ui/Button';
 import { ScreenWrapper } from '@shared/ui/ScreenWrapper';
@@ -34,6 +35,7 @@ export default function LoginScreen() {
       setFalha(mensagemDeErro(erro, 'Falha ao autenticar. Tente novamente.'));
     }
   };
+  const handleEntrouComGoogle = () => navigation.navigate('Main');
   const handleEsqueciSenha = () => navigation.navigate('EsqueciSenha');
   const handleCriarConta = () => navigation.navigate('Cadastro');
 
@@ -48,6 +50,7 @@ export default function LoginScreen() {
         <Button mode="text" onPress={handleEsqueciSenha}>
           Esqueci minha senha
         </Button>
+        <BotaoGoogle onEntrou={handleEntrouComGoogle} onFalha={setFalha} />
         <View style={styles.rodape}>
           <Text style={[styles.convite, { color: theme.colors.onSurfaceVariant }]}>
             Ainda não tem conta?
