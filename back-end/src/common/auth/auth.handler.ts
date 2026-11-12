@@ -1,69 +1,72 @@
-import { hash, verify } from '@node-rs/argon2';
-import jwt from 'jsonwebtoken';
 import { AppError } from '@shared/errors.js';
-import { env } from '@config/env.js';
+import { contaBloqueada } from '@shared/auth.js';
+import { emTransacao } from '@shared/transacao.js';
 import * as sql from './auth.sql.js';
-import type { LoginInput, PublicUser, RegisterInput } from './auth.types.js';
+import { conferirSenha, conferirSenhaFicticia, gerarHashDeSenha } from './senha.js';
+import { emitirSessao, paraUsuarioPublico } from './sessao.js';
+import type { CadastroInput, LoginInput, PublicUser, Sessao, UsuarioRow } from './auth.types.js';
 
-function toPublic(row: { id: number; nome: string; email: string; role: string; peso_voto: number }): PublicUser {
-  return {
-    id: row.id,
-    name: row.nome,
-    email: row.email,
-    role: row.role as PublicUser['role'],
-    vote_weight: row.peso_voto,
-  };
+function normalizarEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
-export async function registerUser(input: RegisterInput) {
+function violacaoDeUnicidade(erro: unknown): boolean {
+  return (erro as { code?: string }).code === '23505';
+}
+
+function emailJaCadastrado(): AppError {
+  return new AppError('Já existe um usuário cadastrado com este e-mail.', 409);
+}
+
+function credenciaisInvalidas(): AppError {
+  return new AppError('E-mail ou senha incorretos.', 401);
+}
+
+export async function cadastrarUsuario(input: CadastroInput): Promise<Sessao> {
   const nome = input.nome.trim();
-  const email = input.email.trim().toLowerCase();
+  const email = normalizarEmail(input.email);
 
-  if (!nome || !email || !input.password) {
-    throw new AppError('Nome, e-mail e senha são obrigatórios.', 400);
+  if (await sql.buscarUsuarioPorEmail(email)) {
+    throw emailJaCadastrado();
   }
 
-  if (input.password.length < 6) {
-    throw new AppError('A senha deve ter ao menos 6 caracteres.', 400);
-  }
+  const senhaHash = await gerarHashDeSenha(input.password);
+  return emTransacao(async (executor) => {
+    let criado: UsuarioRow;
+    try {
+      criado = await sql.inserirUsuario({ nome, email, senhaHash }, executor);
+    } catch (erro) {
+      if (violacaoDeUnicidade(erro)) throw emailJaCadastrado();
+      throw erro;
+    }
 
-  const existing = await sql.findUserByEmail(email);
-  if (existing) {
-    throw new AppError('Já existe um usuário cadastrado com este e-mail.', 409);
-  }
-
-  const passwordHash = await hash(input.password);
-  const created = await sql.insertUser({ nome, email, passwordHash, role: 'citizen' });
-
-  return { user: toPublic(created) };
+    return emitirSessao(criado, executor);
+  });
 }
 
-export async function loginUser(input: LoginInput) {
-  const email = input.email.trim().toLowerCase();
-  const user = await sql.findUserByEmail(email);
+export async function entrarComSenha(input: LoginInput): Promise<Sessao> {
+  const usuario = await sql.buscarCredenciaisPorEmail(normalizarEmail(input.email));
 
-  if (!user) {
-    throw new AppError('E-mail ou senha incorretos.', 401);
+  if (!usuario) {
+    await conferirSenhaFicticia(input.password);
+    throw credenciaisInvalidas();
   }
 
-  const isPasswordValid = await verify(user.senha, input.password);
-  if (!isPasswordValid) {
-    throw new AppError('E-mail ou senha incorretos.', 401);
+  if (!(await conferirSenha(usuario.senha, input.password))) {
+    throw credenciaisInvalidas();
   }
 
-  const token = jwt.sign(
-    { sub: user.id, email: user.email, role: user.role },
-    env.JWT_SECRET,
-    { expiresIn: '7d' },
-  );
+  if (usuario.bloqueado_em) {
+    throw contaBloqueada();
+  }
 
-  return { token, user: toPublic(user) };
+  return emitirSessao(usuario);
 }
 
-export async function getMe(userId: number) {
-  const user = await sql.findUserById(userId);
-  if (!user) {
+export async function obterUsuarioAtual(usuarioId: number): Promise<{ user: PublicUser }> {
+  const usuario = await sql.buscarUsuarioPorId(usuarioId);
+  if (!usuario) {
     throw new AppError('Usuário não encontrado.', 404);
   }
-  return { user: toPublic(user) };
+  return { user: paraUsuarioPublico(usuario) };
 }
