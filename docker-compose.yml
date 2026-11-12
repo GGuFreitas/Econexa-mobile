@@ -131,7 +131,37 @@ services:
     depends_on:
       - backend
 
+  postgres-backup:
+    image: postgis/postgis:15-3.4
+    container_name: econexa-postgres-backup
+    restart: unless-stopped
+    command: ['bash', '/backup/agendador.sh']
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGUSER: admin
+      PGPASSWORD: senha_secreta
+      PGDATABASE: mutira_db
+      TZ: America/Sao_Paulo
+      BACKUP_DIR: /backups
+      BACKUP_HORARIO: '03:00'
+      BACKUP_RETENCAO_DIAS: 7
+      BACKUP_AO_INICIAR: 'true'
+    volumes:
+      - ./infra/backup:/backup:ro
+      - postgres_backups:/backups
+    healthcheck:
+      test: ['CMD-SHELL', 'find /backups -maxdepth 1 -type f -name "*.dump" -mmin -1560 | grep -q .']
+      interval: 10m
+      timeout: 30s
+      start_period: 10m
+      retries: 1
+    depends_on:
+      postgres:
+        condition: service_healthy
+
 volumes:
   postgres_data:
   minio_data:
   mailpit_data:
+  postgres_backups:
