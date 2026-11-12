@@ -249,7 +249,11 @@ na_caixa bash -c 'dropdb ponto_fixo && rm -f /tmp/ponto_fixo.dump'
 [[ -z $diferenca ]] || falhou "a grafia não estabilizou no segundo ciclo: $diferenca"
 ok "a grafia estabiliza: um segundo ciclo dump/restore do restaurado dá esquema idêntico byte a byte"
 for banco in mutira_db "$restaurado"; do
-  consulta "$banco" <<'SQL' || falhou "as restrições não barram igual em $banco"
+  consulta "$banco" >/dev/null <<'SQL' || falhou "as restrições não barram igual em $banco"
+CREATE TEMP TABLE sequencias_antes AS
+  SELECT 'problema_eventos_id_seq'::regclass AS sequencia, last_value, is_called FROM problema_eventos_id_seq
+  UNION ALL
+  SELECT 'problema_encaminhamentos_id_seq'::regclass, last_value, is_called FROM problema_encaminhamentos_id_seq;
 BEGIN;
 DO $$
 BEGIN
@@ -270,6 +274,7 @@ BEGIN
   VALUES (20, 1, 1, 'T', 'T', 'T');
 END $$;
 ROLLBACK;
+SELECT setval(sequencia, last_value, is_called) FROM sequencias_antes;
 SQL
 done
 ok "o CHECK de tipo e o índice único parcial barram (e deixam passar) igual no original e no restaurado"
