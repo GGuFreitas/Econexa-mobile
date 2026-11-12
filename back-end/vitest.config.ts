@@ -24,6 +24,7 @@ export default defineConfig({
       DATABASE_URL: 'postgresql://admin:senha_secreta@localhost:5432/mutira_db',
       CORS_ORIGINS: 'http://localhost:19006,http://localhost:3000',
       JWT_SECRET: 'test-secret-key-123456',
+      GOOGLE_CLIENT_IDS: 'cliente-web-teste.apps.googleusercontent.com',
     },
     coverage: {
       provider: 'v8',
