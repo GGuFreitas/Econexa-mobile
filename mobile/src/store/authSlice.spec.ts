@@ -16,6 +16,7 @@ const ana: User = {
   role: 'citizen',
   vote_weight: 1,
   email_verified: false,
+  has_password: true,
 };
 
 const autenticado: AuthState = {
