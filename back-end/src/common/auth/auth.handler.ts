@@ -5,19 +5,26 @@ import { emTransacao, type Executor } from '@shared/transacao.js';
 import { dbPool } from '@config/database.js';
 import { env } from '@config/env.js';
 import * as sql from './auth.sql.js';
-import { emailDeVerificacao, VALIDADE_DA_VERIFICACAO_HORAS } from './auth.emails.js';
-import { hashDeSegredo, tokenAleatorio } from './segredos.js';
+import {
+  emailDeCodigo,
+  emailDeVerificacao,
+  VALIDADE_DA_VERIFICACAO_HORAS,
+  VALIDADE_DO_CODIGO_MINUTOS,
+} from './auth.emails.js';
+import { codigoDeSeisDigitos, hashDeSegredo, hashesIguais, tokenAleatorio } from './segredos.js';
 import { conferirSenha, conferirSenhaFicticia, gerarHashDeSenha } from './senha.js';
-import { emitirSessao, paraUsuarioPublico } from './sessao.js';
+import { emitirSessao, paraUsuarioPublico, revogarTodasAsSessoes } from './sessao.js';
 import type {
   CadastroInput,
   LoginInput,
   PublicUser,
+  RedefinicaoDeSenhaInput,
   ResultadoDaConfirmacao,
   Sessao,
   UsuarioRow,
 } from './auth.types.js';
 
+export const TENTATIVAS_POR_CODIGO = 5;
 const BYTES_DO_TOKEN_DE_VERIFICACAO = 32;
 
 function normalizarEmail(email: string): string {
@@ -34,6 +41,10 @@ function emailJaCadastrado(): AppError {
 
 function credenciaisInvalidas(): AppError {
   return new AppError('E-mail ou senha incorretos.', 401);
+}
+
+function codigoInvalido(): AppError {
+  return new AppError('Código inválido ou expirado. Peça um novo código.', 400, 'CODIGO_INVALIDO');
 }
 
 async function enviarSemDerrubar(mensagem: MensagemEmail, descricao: string): Promise<void> {
@@ -141,4 +152,55 @@ export async function confirmarEmail(token: string): Promise<ResultadoDaConfirma
   if (resultado) return resultado;
 
   return (await sql.emailDoTokenJaVerificado(tokenHash)) ? 'ja_confirmado' : 'invalido';
+}
+
+export async function solicitarRedefinicaoDeSenha(emailInformado: string): Promise<void> {
+  const usuario = await sql.buscarUsuarioPorEmail(normalizarEmail(emailInformado));
+  if (!usuario) return;
+
+  const codigo = codigoDeSeisDigitos();
+  await emTransacao(async (executor) => {
+    await sql.invalidarCodigosDeRedefinicao(usuario.id, executor);
+    await sql.inserirCodigoDeRedefinicao(
+      usuario.id,
+      hashDeSegredo(codigo),
+      VALIDADE_DO_CODIGO_MINUTOS,
+      executor,
+    );
+  });
+
+  await enviarSemDerrubar(
+    emailDeCodigo(usuario.email, codigo),
+    `o código de redefinição de senha do usuário ${usuario.id}`,
+  );
+}
+
+export async function redefinirSenha(input: RedefinicaoDeSenhaInput): Promise<Sessao> {
+  const usuario = await sql.buscarUsuarioPorEmail(normalizarEmail(input.email));
+  if (!usuario) {
+    throw codigoInvalido();
+  }
+
+  const reservado = await sql.reservarTentativaDeCodigo(usuario.id, TENTATIVAS_POR_CODIGO);
+  if (!reservado || !hashesIguais(hashDeSegredo(input.code), reservado.codigo_hash)) {
+    throw codigoInvalido();
+  }
+
+  const senhaHash = await gerarHashDeSenha(input.password);
+  return emTransacao(async (executor) => {
+    if (!(await sql.consumirCodigoDeRedefinicao(reservado.id, executor))) {
+      throw codigoInvalido();
+    }
+
+    const atualizado = await sql.gravarSenhaRedefinida(usuario.id, senhaHash, executor);
+    if (!atualizado) {
+      throw codigoInvalido();
+    }
+    if (atualizado.bloqueado_em) {
+      throw contaBloqueada();
+    }
+
+    await revogarTodasAsSessoes(usuario.id, executor);
+    return emitirSessao(atualizado, executor);
+  });
 }
