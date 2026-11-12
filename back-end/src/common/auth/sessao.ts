@@ -16,6 +16,7 @@ export function paraUsuarioPublico(usuario: UsuarioRow): PublicUser {
     email: usuario.email,
     role: usuario.role as PublicUser['role'],
     vote_weight: usuario.peso_voto,
+    email_verified: usuario.email_verificado,
   };
 }
 

@@ -2,16 +2,32 @@ import type { FastifyInstance } from 'fastify';
 import { parse } from '@shared/validate.js';
 import { created, ok } from '@shared/http.js';
 import { requireAuth } from '@shared/auth.js';
+import { responderHtml } from '@shared/html.js';
 import {
+  confirmacaoEmailLimiter,
   loginLimiter,
   porOrigem,
+  porUsuario,
   rateLimitGuard,
+  reenvioVerificacaoLimiter,
   registroLimiter,
   renovacaoSessaoLimiter,
 } from '@shared/ratelimit.js';
-import { cadastroSchema, loginSchema, refreshTokenSchema } from '@common/auth/auth.schemas.js';
-import { cadastrarUsuario, entrarComSenha, obterUsuarioAtual } from '@common/auth/auth.handler.js';
+import {
+  cadastroSchema,
+  confirmarEmailQuerySchema,
+  loginSchema,
+  refreshTokenSchema,
+} from '@common/auth/auth.schemas.js';
+import {
+  cadastrarUsuario,
+  confirmarEmail,
+  entrarComSenha,
+  obterUsuarioAtual,
+  reenviarVerificacao,
+} from '@common/auth/auth.handler.js';
 import { renovarSessao, revogarRefreshToken } from '@common/auth/sessao.js';
+import { paginaDaConfirmacao, paginaDeMuitasTentativas } from '@common/auth/auth.paginas.js';
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
@@ -52,5 +68,26 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.get('/me', { preHandler: requireAuth }, async (request, reply) => {
     const result = await obterUsuarioAtual(request.user!.id);
     return ok(reply, { user: result.user });
+  });
+
+  app.post(
+    '/resend-verification',
+    { preHandler: [requireAuth, rateLimitGuard(reenvioVerificacaoLimiter, porUsuario)] },
+    async (request, reply) => {
+      await reenviarVerificacao(request.user!.id);
+      return reply.status(202).send({
+        message: 'Se o seu e-mail ainda não estiver confirmado, enviamos um novo link de confirmação.',
+      });
+    },
+  );
+
+  app.get('/verify-email', { logLevel: 'warn' }, async (request, reply) => {
+    if (!confirmacaoEmailLimiter.tryConsume(porOrigem(request))) {
+      return responderHtml(reply, paginaDeMuitasTentativas(), 429);
+    }
+
+    const consulta = confirmarEmailQuerySchema.safeParse(request.query);
+    const resultado = consulta.success ? await confirmarEmail(consulta.data.token) : 'invalido';
+    return responderHtml(reply, paginaDaConfirmacao(resultado));
   });
 }
