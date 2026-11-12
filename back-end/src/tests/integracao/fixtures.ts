@@ -18,7 +18,7 @@ export async function limparBanco(): Promise<void> {
     TRUNCATE problema_eventos, problema_encaminhamentos, problema_denuncias,
              problema_apoios, problema_comentarios, mobilizacao_participantes,
              mobilizacoes, imagens, problemas, refresh_tokens, password_reset_tokens,
-             email_verification_tokens, users
+             email_verification_tokens, usuario_oauth_contas, users
     RESTART IDENTITY CASCADE
   `);
 }
