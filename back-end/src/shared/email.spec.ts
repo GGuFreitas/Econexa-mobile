@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { destinatarioEfetivo, enviarEmail, envioExternoLiberado, montarEnvelope } from './email.js';
+import {
+  destinatarioEfetivo,
+  enviarEmail,
+  envioExternoLiberado,
+  montarEnvelope,
+  opcoesDoTransporte,
+} from './email.js';
 
 const sendMail = vi.fn().mockResolvedValue({ messageId: 'local' });
 
@@ -38,5 +44,39 @@ describe('email em desenvolvimento', () => {
 
     expect(sendMail).toHaveBeenCalledWith(envelope);
     expect(envelope.to).toBe('caixa-dev@mutira.local');
+  });
+});
+
+describe('opções do transporte SMTP', () => {
+  const base = { SMTP_HOST: 'smtp.exemplo.invalid', SMTP_PORT: 587, SMTP_USER: '', SMTP_PASS: '' };
+
+  it('sem usuário, fala com o SMTP local sem TLS nem autenticação', () => {
+    expect(opcoesDoTransporte({ ...base, SMTP_SECURE: false })).toEqual({
+      host: 'smtp.exemplo.invalid',
+      port: 587,
+      secure: false,
+      ignoreTLS: true,
+    });
+  });
+
+  it('com usuário e sem TLS implícito, exige STARTTLS antes de mandar a senha', () => {
+    const opcoes = opcoesDoTransporte({ ...base, SMTP_SECURE: false, SMTP_USER: 'app', SMTP_PASS: 'segredo' });
+
+    expect(opcoes.requireTLS).toBe(true);
+    expect(opcoes.ignoreTLS).toBeUndefined();
+    expect(opcoes.auth).toEqual({ user: 'app', pass: 'segredo' });
+  });
+
+  it('com TLS implícito não pede STARTTLS', () => {
+    const opcoes = opcoesDoTransporte({
+      ...base,
+      SMTP_PORT: 465,
+      SMTP_SECURE: true,
+      SMTP_USER: 'app',
+      SMTP_PASS: 'segredo',
+    });
+
+    expect(opcoes.secure).toBe(true);
+    expect(opcoes.requireTLS).toBe(false);
   });
 });
