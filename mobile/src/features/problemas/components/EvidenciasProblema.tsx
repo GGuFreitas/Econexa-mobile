@@ -30,6 +30,7 @@ export function EvidenciasProblema({ problemaId, podeAdicionar }: EvidenciasProb
       quality: 0.8,
       allowsEditing: true,
       aspect: [4, 3],
+      exif: false,
     });
     if (resultado.canceled) return;
 

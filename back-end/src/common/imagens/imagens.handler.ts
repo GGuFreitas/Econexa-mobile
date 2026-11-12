@@ -10,6 +10,7 @@ import {
 import { getProblemaById } from '@common/problemas/problemas.sql.js';
 import { registrarEvento } from '@common/problemaEventos/problemaEventos.handler.js';
 import * as sql from './imagens.sql.js';
+import { normalizarImagem } from './imagens.normalizacao.js';
 import type { EvidenciaProblemaInput, Imagem, ImagemInput } from './imagens.types.js';
 
 export const TAMANHO_MAXIMO_IMAGEM = 5 * 1024 * 1024;
@@ -90,9 +91,11 @@ export async function enviarEvidenciaProblema(
     throw new AppError('Apoie este problema para poder adicionar evidência a ele.', 403);
   }
 
+  const conteudo = await normalizarImagem(input.conteudo, input.mimetype);
+
   const existentes = await sql.contarImagensDaEntidade('problema', input.problemaId);
   const chave = `problema/${input.problemaId}/${randomUUID()}.${EXTENSAO_POR_MIME[input.mimetype]}`;
-  const url = await enviarObjeto(chave, input.conteudo, input.mimetype);
+  const url = await enviarObjeto(chave, conteudo, input.mimetype);
 
   try {
     return await emTransacao(async (executor) => {
