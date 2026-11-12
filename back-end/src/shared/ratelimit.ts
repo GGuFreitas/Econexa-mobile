@@ -39,6 +39,7 @@ export const reenvioVerificacaoLimiter = new RateLimiter(3, UMA_HORA);
 export const esqueciSenhaLimiter = new RateLimiter(3, UMA_HORA);
 export const esqueciSenhaPorEmailLimiter = new RateLimiter(3, UMA_HORA);
 export const redefinicaoSenhaLimiter = new RateLimiter(10, UM_MINUTO);
+export const googleLimiter = new RateLimiter(10, UM_MINUTO);
 
 export function porUsuario(request: FastifyRequest): string {
   return String(request.user!.id);
