@@ -10,11 +10,6 @@ interface BottomSheetProps {
   children: ReactNode;
 }
 
-/**
- * Bottom sheet leve baseado no Modal do Paper.
- * Posicionado na base da tela, com cantos arredondados no topo.
- * (PR-M3 aprimora com gesture/drag.)
- */
 export function BottomSheet({ visible, onDismiss, children }: BottomSheetProps) {
   const theme = useAppTheme();
   return (

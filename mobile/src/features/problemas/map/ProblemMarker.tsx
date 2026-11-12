@@ -10,13 +10,6 @@ interface ProblemMarkerProps {
   onPress: (problema: Problema) => void;
 }
 
-/**
- * Marker do mapa Mutira.
- * Gramática visual:
- *  - Ícone + Cor = tipo (causa)
- *  - Tamanho = prioridade da causa
- *  - Anel + badge = mobilização (apoios)
- */
 export function ProblemMarker({ problema, onPress }: ProblemMarkerProps) {
   const causa = getCausa(problema.causa_id);
   const size = markerSizeByPriority[causa.priority];

@@ -59,7 +59,7 @@ interface TabProps2 {
 }
 
 export function Tab({ label, icon, badge }: TabProps2) {
-  return null; // Rendered by Tabs
+  return null;
 }
 
 const styles = StyleSheet.create({

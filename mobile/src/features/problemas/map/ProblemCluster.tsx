@@ -10,10 +10,6 @@ interface ProblemClusterProps {
   onPress: () => void;
 }
 
-/**
- * Cluster inteligente: mostra distribuição por categoria
- * (ex: 🚌12  🌳4  ⚠️2) em vez de apenas um contador genérico.
- */
 export function ProblemCluster({ pontos, onPress }: ProblemClusterProps) {
   const total = pontos.length;
   const contagem = new Map<number, number>();
