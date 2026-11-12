@@ -6,6 +6,7 @@ export type ApiUser = {
   email: string;
   role: User['role'];
   vote_weight: number;
+  email_verified: boolean;
 };
 
 export type SessaoDaApi = {
@@ -23,6 +24,7 @@ export function mapUser(u: ApiUser): User {
     email: u.email,
     role: u.role,
     vote_weight: u.vote_weight,
+    email_verified: u.email_verified,
   };
 }
 

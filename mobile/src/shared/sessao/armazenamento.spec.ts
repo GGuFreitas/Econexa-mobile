@@ -35,6 +35,7 @@ const ana: User = {
   email: 'ana@x.com',
   role: 'citizen',
   vote_weight: 1,
+  email_verified: false,
 };
 
 describe('armazenamento da sessão', () => {
@@ -73,6 +74,18 @@ describe('armazenamento da sessão', () => {
     secureStore.itens.set(CHAVES_DA_SESSAO.usuario, JSON.stringify(ana));
 
     await expect(criarArmazenamentoDaSessao().ler()).resolves.toBeNull();
+  });
+
+  it('gravarUsuario troca só o snapshot', async () => {
+    const armazenamento = criarArmazenamentoDaSessao();
+    await armazenamento.gravar({ refreshToken: 'refresh-1', usuario: ana });
+
+    await armazenamento.gravarUsuario({ ...ana, email_verified: true });
+
+    await expect(armazenamento.ler()).resolves.toEqual({
+      refreshToken: 'refresh-1',
+      usuario: { ...ana, email_verified: true },
+    });
   });
 
   it('limpar apaga as duas chaves', async () => {
