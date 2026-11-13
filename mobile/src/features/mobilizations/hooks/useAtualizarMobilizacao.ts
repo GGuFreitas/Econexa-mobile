@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { atualizarMobilizacao } from '../api/listar';
+import { atualizarMobilizacao } from '../api/atualizar';
 import type { AtualizarMobilizacaoInput } from '../types';
 
 export function useAtualizarMobilizacao() {
