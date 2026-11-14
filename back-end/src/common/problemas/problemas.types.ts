@@ -67,11 +67,14 @@ export interface FiltroProblemas {
   tipo?: ProblemaTipo;
   status?: ProblemaStatus;
   escopo?: ProblemaEscopo;
+  relatadoPor?: number;
+  apoiadoPor?: number;
 }
 
 export interface ListarProblemasQuery extends FiltroProblemas {
   pagina?: number;
   limite?: number;
+  recentesPrimeiro?: boolean;
 }
 
 export interface EstatisticasProblemas {
