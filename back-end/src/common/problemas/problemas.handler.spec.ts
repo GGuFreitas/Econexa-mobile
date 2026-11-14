@@ -249,6 +249,7 @@ describe('problemas handlers', () => {
   it('pode_encaminhar acompanha as travas que o POST de encaminhamento aplica', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] });
 
     const comOrgaoLivre = await obterProblema(1, 7, 'citizen');
@@ -256,12 +257,15 @@ describe('problemas handlers', () => {
 
     mockQuery
       .mockResolvedValueOnce({ rows: [problemaDoAutor] })
+      .mockResolvedValueOnce({ rows: [] })
       .mockResolvedValueOnce({ rows: [] });
 
     const semOrgaoLivre = await obterProblema(1, 7, 'citizen');
     expect(semOrgaoLivre.pode_encaminhar).toBe(false);
 
-    mockQuery.mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'removido' }] });
+    mockQuery
+      .mockResolvedValueOnce({ rows: [{ ...problemaDoAutor, status: 'removido' }] })
+      .mockResolvedValueOnce({ rows: [] });
 
     const removido = await obterProblema(1, 7, 'citizen');
     expect(removido.pode_encaminhar).toBe(false);
@@ -276,7 +280,25 @@ describe('problemas handlers', () => {
 
     expect(apoiador.pode_adicionar_evidencia).toBe(true);
     expect(apoiador.pode_encaminhar).toBe(false);
+    expect(apoiador.apoiado).toBe(true);
     expect(mockQuery.mock.calls[1][0]).toContain('FROM problema_apoios');
+  });
+
+  it('o detalhe diz se a pessoa já apoiou, inclusive quando é a autora', async () => {
+    mockQuery
+      .mockResolvedValueOnce({ rows: [problemaDoAutor] })
+      .mockResolvedValueOnce({ rows: [{ '?column?': 1 }] })
+      .mockResolvedValueOnce({ rows: [] });
+
+    const autora = await obterProblema(1, 7, 'citizen');
+
+    expect(autora.apoiado).toBe(true);
+
+    mockQuery.mockResolvedValueOnce({ rows: [problemaDoAutor] });
+
+    const anonimo = await obterProblema(1);
+
+    expect(anonimo.apoiado).toBe(false);
   });
 
   it('quem não apoiou nem é autor não adiciona evidência', async () => {

@@ -41,6 +41,7 @@ export interface CriarProblemaInput {
 }
 
 export interface ProblemaDetalhe extends Problema {
+  apoiado: boolean;
   pode_encaminhar: boolean;
   pode_adicionar_evidencia: boolean;
   transicoes_permitidas: ProblemaStatus[];
