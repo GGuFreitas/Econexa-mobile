@@ -4,6 +4,7 @@ import { emTransacao, type Executor } from '@shared/transacao.js';
 import { enviarObjeto, removerObjeto } from '@shared/storage.js';
 import { usuarioApoiou } from '@common/apoios/apoios.sql.js';
 import {
+  invalidarCacheDeProblemas,
   podeAdicionarEvidencia,
   podeGerenciarProblema,
 } from '@common/problemas/problemas.handler.js';
@@ -94,9 +95,10 @@ export async function enviarEvidenciaProblema(
   const chave = `problema/${input.problemaId}/${randomUUID()}.${EXTENSAO_POR_MIME[input.mimetype]}`;
   const url = await enviarObjeto(chave, input.conteudo, input.mimetype);
 
+  let imagem: Imagem;
   try {
-    return await emTransacao(async (executor) => {
-      const imagem = await sql.insertImagem(
+    imagem = await emTransacao(async (executor) => {
+      const inserida = await sql.insertImagem(
         {
           tipo_entidade: 'problema',
           entidade_id: input.problemaId,
@@ -112,15 +114,18 @@ export async function enviarEvidenciaProblema(
           problemaId: input.problemaId,
           tipo: 'EVIDENCIA_ADICIONADA',
           usuarioId: input.usuarioId,
-          dados: { imagem_id: imagem.id, url: imagem.url },
+          dados: { imagem_id: inserida.id, url: inserida.url },
         },
         executor,
       );
 
-      return imagem;
+      return inserida;
     });
   } catch (erro) {
     await removerObjeto(chave);
     throw erro;
   }
+
+  await invalidarCacheDeProblemas();
+  return imagem;
 }

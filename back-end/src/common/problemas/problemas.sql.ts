@@ -5,6 +5,7 @@ import type {
   FiltroProblemas,
   ListarProblemasQuery,
   Problema,
+  ProblemaListado,
   ProblemaStatus,
 } from './problemas.types.js';
 
@@ -82,7 +83,7 @@ function construirFiltro(query: FiltroProblemas): FiltroConstruido {
   return { where: `WHERE ${conditions.join(' AND ')}`, params, distancia };
 }
 
-export async function listarProblemas(query: ListarProblemasQuery): Promise<Problema[]> {
+export async function listarProblemas(query: ListarProblemasQuery): Promise<ProblemaListado[]> {
   const { where, params, distancia } = construirFiltro(query);
 
   const limit = query.limite ?? 20;
@@ -96,10 +97,16 @@ export async function listarProblemas(query: ListarProblemasQuery): Promise<Prob
     : 'p.cont_apoios_ponderados DESC, p.criado_em DESC';
 
   const result = await dbPool.query(
-    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat${
+    `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat, img.capa_url, img.cont_imagens${
       distancia ? `, ${distancia} AS distancia_m` : ''
     }
      FROM problemas p
+     LEFT JOIN LATERAL (
+       SELECT (array_agg(i.url ORDER BY i.principal DESC, i.ordem ASC, i.criado_em ASC))[1] AS capa_url,
+              COUNT(*)::int AS cont_imagens
+       FROM imagens i
+       WHERE i.tipo_entidade = 'problema' AND i.entidade_id = p.id
+     ) img ON true
      ${where}
      ORDER BY ${orderBy}
      LIMIT $${limitIdx} OFFSET $${offsetIdx}`,
