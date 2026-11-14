@@ -27,6 +27,7 @@ export function useApoio(problemaId: number) {
     onError: (_e, _v, ctx) => reverter(ctx),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['problemas'] });
+      qc.invalidateQueries({ queryKey: ['me'] });
       qc.invalidateQueries({ queryKey: ['problema', problemaId] });
       qc.invalidateQueries({ queryKey: ['estatisticas'] });
       qc.invalidateQueries({ queryKey: ['eventos', problemaId] });
@@ -39,6 +40,7 @@ export function useApoio(problemaId: number) {
     onError: (_e, _v, ctx) => reverter(ctx),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: ['problemas'] });
+      qc.invalidateQueries({ queryKey: ['me'] });
       qc.invalidateQueries({ queryKey: ['problema', problemaId] });
       qc.invalidateQueries({ queryKey: ['estatisticas'] });
       qc.invalidateQueries({ queryKey: ['eventos', problemaId] });
