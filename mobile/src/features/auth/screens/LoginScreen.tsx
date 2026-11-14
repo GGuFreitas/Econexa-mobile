@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLogin } from '@features/auth/hooks/useLogin';
 import { LoginForm, type LoginFormValues } from '@features/auth/components/LoginForm';
 import { BotaoGoogle } from '@features/auth/components/BotaoGoogle';
+import { MarcaMutira } from '@features/auth/components/MarcaMutira';
 import { MensagemDeRetorno } from '@features/auth/components/MensagemDeRetorno';
 import { Button } from '@shared/ui/Button';
 import { ScreenWrapper } from '@shared/ui/ScreenWrapper';
@@ -42,9 +43,7 @@ export default function LoginScreen() {
   return (
     <ScreenWrapper>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>
-          Bem-vindo ao Econexa
-        </Text>
+        <MarcaMutira />
         <MensagemDeRetorno texto={mensagem} />
         <LoginForm onSubmit={handleLogin} />
         <Button mode="text" onPress={handleEsqueciSenha}>
@@ -71,7 +70,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.four,
     gap: spacing.three,
   },
-  titulo: { fontSize: typography.fontSize.title, fontWeight: '700' },
   rodape: { alignItems: 'center', gap: spacing.one },
   convite: { fontSize: typography.fontSize.sm },
 });
