@@ -55,6 +55,10 @@ export async function problemasApoiados(
   });
 }
 
+export async function idsApoiados(usuarioId: number): Promise<number[]> {
+  return sql.idsApoiados(usuarioId);
+}
+
 export async function acoesDoUsuario(
   usuarioId: number,
   paginacao: Paginacao,

@@ -35,6 +35,18 @@ export async function contagensDoUsuario(usuarioId: number): Promise<ContagensDo
   return result.rows[0];
 }
 
+export async function idsApoiados(usuarioId: number): Promise<number[]> {
+  const result = await dbPool.query(
+    `SELECT a.problema_id
+       FROM problema_apoios a
+       JOIN problemas p ON p.id = a.problema_id
+      WHERE a.usuario_id = $1 AND p.status <> 'removido'
+      ORDER BY a.problema_id`,
+    [usuarioId],
+  );
+  return result.rows.map((linha: { problema_id: number }) => Number(linha.problema_id));
+}
+
 export async function problemasPertoDaMeta(
   usuarioId: number,
   meta: number,

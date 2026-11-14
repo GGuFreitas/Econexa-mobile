@@ -217,6 +217,25 @@ describe('me: resumo, listas e avisos de quem está logado', () => {
     expect(lista.map((p) => p.titulo)).toEqual(['Apoiado']);
   });
 
+  it('GET /me/apoios devolve os ids que a pessoa apoia, sem os removidos', async () => {
+    const primeiro = await criarProblemaNoBanco({ usuarioId: outra, titulo: 'Primeiro' });
+    const segundo = await criarProblemaNoBanco({ usuarioId: outra, titulo: 'Segundo' });
+    const removido = await criarProblemaNoBanco({ usuarioId: outra, status: 'removido' });
+    await criarProblemaNoBanco({ usuarioId: outra, titulo: 'Não apoiado' });
+    await apoiar(segundo, eu);
+    await apoiar(primeiro, eu);
+    await apoiar(removido, eu);
+    await apoiar(primeiro, outra);
+
+    const resposta = await app.inject({
+      method: 'GET',
+      url: '/api/me/apoios',
+      headers: { authorization: `Bearer ${tokenDe(eu)}` },
+    });
+
+    expect(resposta.json()).toEqual([primeiro, segundo]);
+  });
+
   it('lista as ações com o papel da pessoa e o título do problema', async () => {
     const meu = await criarProblemaNoBanco({ usuarioId: eu, titulo: 'Poste apagado' });
     const dela = await criarProblemaNoBanco({ usuarioId: outra, titulo: 'Calçada' });
