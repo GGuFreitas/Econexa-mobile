@@ -69,7 +69,6 @@ export function FeedScreen() {
 const styles = StyleSheet.create({
   list: { flex: 1 },
   listContent: {
-    paddingHorizontal: spacing.two,
     paddingTop: spacing.two,
     paddingBottom: spacing.four,
     gap: spacing.two,
