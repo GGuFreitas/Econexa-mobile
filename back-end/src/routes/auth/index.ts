@@ -6,6 +6,7 @@ import { responderHtml } from '@shared/html.js';
 import {
   confirmacaoEmailLimiter,
   esqueciSenhaLimiter,
+  exclusaoContaLimiter,
   esqueciSenhaPorEmailLimiter,
   exigirCota,
   googleLimiter,
@@ -23,6 +24,7 @@ import {
   cadastroSchema,
   confirmarEmailQuerySchema,
   esqueciSenhaSchema,
+  exclusaoDeContaSchema,
   googleSchema,
   loginSchema,
   redefinirSenhaSchema,
@@ -39,6 +41,7 @@ import {
   solicitarRedefinicaoDeSenha,
 } from '@common/auth/auth.handler.js';
 import { renovarSessao, revogarRefreshToken } from '@common/auth/sessao.js';
+import { excluirConta } from '@common/auth/exclusao.js';
 import { paginaDaConfirmacao, paginaDeMuitasTentativas } from '@common/auth/auth.paginas.js';
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
@@ -81,6 +84,16 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const result = await obterUsuarioAtual(request.user!.id);
     return ok(reply, { user: result.user });
   });
+
+  app.delete(
+    '/me',
+    { preHandler: [requireAuth, rateLimitGuard(exclusaoContaLimiter, porUsuario)] },
+    async (request, reply) => {
+      const { password } = parse(exclusaoDeContaSchema, request.body ?? {});
+      await excluirConta(request.user!.id, password);
+      return reply.status(204).send();
+    },
+  );
 
   app.post(
     '/resend-verification',
