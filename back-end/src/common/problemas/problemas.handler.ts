@@ -74,6 +74,7 @@ async function montarDetalhe(
   if (usuarioId == null || role == null) {
     return {
       ...problema,
+      apoiado: false,
       pode_encaminhar: false,
       pode_adicionar_evidencia: false,
       transicoes_permitidas: [],
@@ -81,12 +82,13 @@ async function montarDetalhe(
   }
 
   const gerencia = podeGerenciarProblema(problema, usuarioId, role);
-  const apoiou = gerencia ? false : await usuarioApoiou(problema.id, usuarioId);
+  const apoiou = await usuarioApoiou(problema.id, usuarioId);
   const encaminhavel =
     gerencia && problema.status !== 'removido' && (await existeOrgaoDisponivel(problema.id));
 
   return {
     ...problema,
+    apoiado: apoiou,
     pode_encaminhar: encaminhavel,
     pode_adicionar_evidencia: podeAdicionarEvidencia(problema, usuarioId, role, apoiou),
     transicoes_permitidas: transicoesDisponiveis(problema, usuarioId, role),

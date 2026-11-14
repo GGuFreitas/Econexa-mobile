@@ -5,6 +5,7 @@ import { requireAuth } from '@shared/auth.js';
 import { paginacaoSchema } from '@common/me/me.schemas.js';
 import {
   acoesDoUsuario,
+  idsApoiados,
   problemasApoiados,
   problemasRelatados,
   resumoDoUsuario,
@@ -25,6 +26,10 @@ export async function meRoutes(app: FastifyInstance): Promise<void> {
   app.get('/apoiados', async (request, reply) => {
     const paginacao = parse(paginacaoSchema, request.query);
     return ok(reply, await problemasApoiados(request.user!.id, paginacao));
+  });
+
+  app.get('/apoios', async (request, reply) => {
+    return ok(reply, await idsApoiados(request.user!.id));
   });
 
   app.get('/acoes', async (request, reply) => {
