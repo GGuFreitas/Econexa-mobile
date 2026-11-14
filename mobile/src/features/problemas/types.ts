@@ -27,6 +27,11 @@ export interface Problema {
   distancia_m?: number;
 }
 
+export interface ProblemaListado extends Problema {
+  capa_url: string | null;
+  cont_imagens: number;
+}
+
 export interface ProblemaDetalhe extends Problema {
   pode_encaminhar: boolean;
   pode_adicionar_evidencia: boolean;
