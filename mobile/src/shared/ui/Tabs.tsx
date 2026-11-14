@@ -21,7 +21,13 @@ export function Tabs({ value, onChange, children, style }: TabsProps) {
   const tabs = children.map((child) => child.props);
 
   return (
-    <View style={[styles.container, style]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outline },
+        style,
+      ]}
+    >
       {tabs.map((tab, index) => (
         <TouchableOpacity
           key={index}
@@ -65,9 +71,7 @@ export function Tab({ label, icon, badge }: TabProps2) {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E6EC',
   },
   tab: {
     flex: 1,
