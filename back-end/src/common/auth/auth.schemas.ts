@@ -61,6 +61,13 @@ export const googleSchema = z.object(
   CORPO_INVALIDO,
 );
 
+export const exclusaoDeContaSchema = z.object(
+  {
+    password: z.string().max(128, 'Senha inválida.').optional(),
+  },
+  CORPO_INVALIDO,
+);
+
 export const confirmarEmailQuerySchema = z.object({
   token: z.string().min(1).max(512),
 });

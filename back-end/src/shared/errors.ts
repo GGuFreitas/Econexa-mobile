@@ -7,7 +7,8 @@ export type CodigoDeErro =
   | 'SESSAO_INVALIDA'
   | 'SESSAO_COMPROMETIDA'
   | 'CODIGO_INVALIDO'
-  | 'GOOGLE_INDISPONIVEL';
+  | 'GOOGLE_INDISPONIVEL'
+  | 'SENHA_INCORRETA';
 
 export class AppError extends Error {
   constructor(
