@@ -10,12 +10,14 @@ import { useAppSelector } from '@store/hooks';
 import { queryClient } from '@shared/hooks/useAppQueryClient';
 import { restaurarSessao } from '@shared/sessao/sessao';
 import { getAppTheme } from '@shared/theme/theme';
+import { getNavigationTheme } from '@shared/theme/navigationTheme';
 import AppNavigator from '@navigation/AppNavigator';
 import { SessaoGuard } from '@navigation/SessaoGuard';
 
 function ThemedApp() {
   const mode = useAppSelector((state) => state.theme.mode);
   const paperTheme = getAppTheme(mode);
+  const navigationTheme = getNavigationTheme(paperTheme, mode === 'dark');
 
   useEffect(() => {
     restaurarSessao();
@@ -26,7 +28,7 @@ function ThemedApp() {
       <QueryClientProvider client={queryClient}>
         <SafeAreaProvider>
           <SessaoGuard>
-            <NavigationContainer>
+            <NavigationContainer theme={navigationTheme}>
               <AppNavigator />
             </NavigationContainer>
           </SessaoGuard>
