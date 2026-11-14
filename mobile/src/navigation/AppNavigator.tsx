@@ -6,6 +6,9 @@ import RegisterScreen from '@features/auth/screens/RegisterScreen';
 import EsqueciSenhaScreen from '@features/auth/screens/EsqueciSenhaScreen';
 import RedefinirSenhaScreen from '@features/auth/screens/RedefinirSenhaScreen';
 import ExcluirContaScreen from '@features/auth/screens/ExcluirContaScreen';
+import ModeracaoScreen from '@features/moderacao/screens/ModeracaoScreen';
+import ModeracaoItemScreen from '@features/moderacao/screens/ModeracaoItemScreen';
+import type { ProblemaDenunciado } from '@features/moderacao/types';
 import HomeScreen from '@features/home/screens/HomeScreen';
 import { CriarProblemaScreen } from '@features/problemas/screens/CriarProblemaScreen';
 import { DetalheProblemaScreen } from '@features/problemas/screens/DetalheProblemaScreen';
@@ -20,6 +23,8 @@ export type RootStackParamList = {
   EsqueciSenha: undefined;
   RedefinirSenha: { email: string };
   ExcluirConta: undefined;
+  Moderacao: undefined;
+  ModeracaoItem: { item: ProblemaDenunciado };
   CriarProblema: undefined;
   DetalheProblema: { id: number };
   CriarMobilizacao: { problemaId: number };
@@ -131,6 +136,8 @@ export default function AppNavigator() {
       <Stack.Screen name="EsqueciSenha" component={EsqueciSenhaScreen} />
       <Stack.Screen name="RedefinirSenha" component={RedefinirSenhaScreen} />
       <Stack.Screen name="ExcluirConta" component={ExcluirContaScreen} />
+      <Stack.Screen name="Moderacao" component={ModeracaoScreen} />
+      <Stack.Screen name="ModeracaoItem" component={ModeracaoItemScreen} />
       <Stack.Screen name="CriarProblema" component={CriarGuarded} />
       <Stack.Screen name="DetalheProblema" component={DetalheGuarded} />
       <Stack.Screen name="CriarMobilizacao" component={CriarMobilizacaoGuarded} />
