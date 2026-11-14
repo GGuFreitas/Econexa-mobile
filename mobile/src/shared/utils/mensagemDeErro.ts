@@ -5,6 +5,7 @@ const MENSAGEM_POR_CODIGO: Record<string, string> = {
   SESSAO_INVALIDA: 'Sua sessão expirou. Entre de novo para continuar.',
   SESSAO_COMPROMETIDA:
     'Por segurança, encerramos sua sessão em todos os aparelhos. Entre de novo para continuar.',
+  CODIGO_INVALIDO: 'Código incorreto ou expirado. Confira os 6 números ou peça um código novo.',
 };
 
 export function mensagemDoCodigo(code?: string | null): string | null {

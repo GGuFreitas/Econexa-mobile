@@ -217,6 +217,8 @@ describe('interceptor de sessão da api', () => {
     '/auth/login',
     '/auth/register',
     '/auth/refresh',
+    '/auth/forgot-password',
+    '/auth/reset-password',
     '/auth/logout',
   ])('401 em %s é resposta da própria autenticação: não tenta renovar', async (rota) => {
     const { api, store, servidor } = await montarAutenticado({
