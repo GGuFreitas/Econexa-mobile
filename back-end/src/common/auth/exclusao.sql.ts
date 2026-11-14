@@ -20,6 +20,11 @@ export async function travarConta(
   return result.rows[0] ?? null;
 }
 
+export async function buscarIdPorEmail(email: string): Promise<number | null> {
+  const result = await dbPool.query('SELECT id FROM users WHERE email = $1', [email]);
+  return result.rows.length > 0 ? Number(result.rows[0].id) : null;
+}
+
 export async function anonimizarConta(usuarioId: number, executor: Executor): Promise<void> {
   await executor.query(
     `UPDATE users
