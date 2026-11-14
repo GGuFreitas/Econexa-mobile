@@ -7,7 +7,7 @@ import HomeScreen from '@features/home/screens/HomeScreen';
 import { CriarProblemaScreen } from '@features/problemas/screens/CriarProblemaScreen';
 import { DetalheProblemaScreen } from '@features/problemas/screens/DetalheProblemaScreen';
 import { FeedScreen } from '@features/problemas/screens/FeedScreen';
-import { PerfilScreen } from '@features/problemas/screens/PerfilScreen';
+import { PerfilScreen } from '@features/perfil/screens/PerfilScreen';
 import { CriarMobilizacaoScreen } from '@features/mobilizations/screens/CriarMobilizacaoScreen';
 import { MobilizacaoDetailScreen } from '@features/mobilizations/screens/MobilizacaoDetailScreen';
 

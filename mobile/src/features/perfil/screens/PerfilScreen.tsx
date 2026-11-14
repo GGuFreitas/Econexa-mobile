@@ -1,14 +1,23 @@
+import { useState } from 'react';
 import { useSelector } from 'react-redux';
-import { View, Text, StyleSheet } from 'react-native';
-import { Header, ScreenWrapper, Card, Button, LoadingSpinner } from '@shared/ui';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useNavigation, type NavigationProp } from '@react-navigation/native';
+import { ErrorState, LoadingSpinner } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
 import { useAppDispatch } from '@store/hooks';
 import { logout } from '@store/authSlice';
 import type { User } from '@store/authSlice';
-import { useEstatisticas } from '../hooks';
-import { useLocalizacao } from '@shared/hooks/useLocalizacao';
+import type { RootStackParamList } from '@navigation/AppNavigator';
+import { useAcoes, useApoiados, useRelatados, useResumo } from '../hooks/usePerfil';
+import { CapaPerfil } from '../components/CapaPerfil';
+import { CartaoIdentidade } from '../components/CartaoIdentidade';
+import { FaixaAvisos } from '../components/FaixaAvisos';
+import { GradeProblemas } from '../components/GradeProblemas';
+import { ListaAcoes } from '../components/ListaAcoes';
+import { membroDesde } from '../utils/perfil';
 
 const ROLE_LABEL: Record<string, string> = {
   citizen: 'Cidadão',
@@ -16,67 +25,161 @@ const ROLE_LABEL: Record<string, string> = {
   admin: 'Moderação',
 };
 
-const RAIO_PERFIL_METROS = 8000;
+type Aba = 'relatados' | 'apoiados' | 'acoes';
+
+const ABAS: { chave: Aba; rotulo: string }[] = [
+  { chave: 'relatados', rotulo: 'Relatados' },
+  { chave: 'apoiados', rotulo: 'Apoiados' },
+  { chave: 'acoes', rotulo: 'Ações' },
+];
 
 export function PerfilScreen() {
   const theme = useAppTheme();
   const dispatch = useAppDispatch();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const user = useSelector((state: { auth: { user: User | null } }) => state.auth.user);
-  const { coordenada } = useLocalizacao();
-  const { data: estatisticas } = useEstatisticas({
-    lat: coordenada?.latitude,
-    lng: coordenada?.longitude,
-    raio: RAIO_PERFIL_METROS,
-    status: 'ativo',
-  });
+  const [aba, setAba] = useState<Aba>('relatados');
 
-  if (!user) return <LoadingSpinner />;
+  const resumo = useResumo();
+  const relatados = useRelatados();
+  const apoiados = useApoiados();
+  const acoes = useAcoes();
+
+  if (!user || resumo.isLoading) return <LoadingSpinner />;
+  if (resumo.isError || !resumo.data) {
+    return <ErrorState message="Não foi possível carregar o seu perfil." />;
+  }
+
+  const abrirProblema = (id: number) => navigation.navigate('DetalheProblema', { id });
+  const abrirAcao = (id: number) => navigation.navigate('MobilizacaoDetail', { id });
+
+  const fotos = [...(relatados.data ?? []), ...(apoiados.data ?? [])]
+    .map((problema) => problema.capa_url)
+    .filter((url): url is string => Boolean(url));
+
+  const papel = ROLE_LABEL[user.role] ?? user.role;
+  const subtitulo = `${papel} · no Mutira desde ${membroDesde(resumo.data.membro_desde)}`;
 
   return (
-    <ScreenWrapper>
-      <Header title="Perfil" />
-      <Card style={styles.card}>
-        <Text style={[styles.nome, { color: theme.colors.onSurface }]}>{user.name}</Text>
-        <Text style={[styles.email, { color: theme.colors.onSurfaceVariant }]}>{user.email}</Text>
-        <Text style={[styles.role, { color: theme.colors.primary }]}>
-          {ROLE_LABEL[user.role] ?? user.role}
-        </Text>
-      </Card>
+    <View style={[styles.tela, { backgroundColor: theme.colors.background }]}>
+      <ScrollView contentContainerStyle={styles.conteudo}>
+        <CapaPerfil fotos={fotos} />
+        <CartaoIdentidade
+          nome={user.name}
+          subtitulo={subtitulo}
+          numeros={[
+            { valor: resumo.data.relatados, rotulo: 'relatados' },
+            { valor: resumo.data.apoios_dados, rotulo: 'apoios dados' },
+            { valor: resumo.data.acoes, rotulo: 'ações' },
+          ]}
+        />
 
-      <Card style={styles.card}>
-        <Text style={[styles.section, { color: theme.colors.onSurfaceVariant }]}>
-          Na sua região
-        </Text>
-        {estatisticas ? (
-          <View style={styles.metricRow}>
-            <Text style={[styles.metric, { color: theme.colors.onSurface }]}>
-              {estatisticas.total}
-            </Text>
-            <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
-              problemas ativos num raio de {RAIO_PERFIL_METROS / 1000} km
-            </Text>
-          </View>
-        ) : (
-          <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
-            Carregando os números da sua região.
-          </Text>
-        )}
-      </Card>
+        <FaixaAvisos
+          avisos={resumo.data.avisos}
+          onAbrirProblema={abrirProblema}
+          onAbrirAcao={abrirAcao}
+        />
 
-      <Button mode="outlined" icon="logout" onPress={() => dispatch(logout())}>
-        Sair da conta
-      </Button>
-    </ScreenWrapper>
+        <View
+          accessibilityRole="tablist"
+          style={[styles.abas, { borderBottomColor: theme.colors.outline }]}
+        >
+          {ABAS.map(({ chave, rotulo }) => {
+            const ativa = aba === chave;
+            return (
+              <Pressable
+                key={chave}
+                onPress={() => setAba(chave)}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: ativa }}
+                style={[
+                  styles.aba,
+                  { borderBottomColor: ativa ? theme.colors.primary : 'transparent' },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.abaTexto,
+                    { color: ativa ? theme.colors.primary : theme.colors.onSurfaceVariant },
+                  ]}
+                >
+                  {rotulo}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        {aba === 'relatados' &&
+          (relatados.isLoading ? (
+            <LoadingSpinner />
+          ) : (
+            <GradeProblemas
+              problemas={relatados.data ?? []}
+              vazio="Você ainda não relatou nenhum problema."
+              onAbrir={abrirProblema}
+            />
+          ))}
+        {aba === 'apoiados' &&
+          (apoiados.isLoading ? (
+            <LoadingSpinner />
+          ) : (
+            <GradeProblemas
+              problemas={apoiados.data ?? []}
+              vazio="Você ainda não apoiou nenhum problema."
+              onAbrir={abrirProblema}
+            />
+          ))}
+        {aba === 'acoes' &&
+          (acoes.isLoading ? (
+            <LoadingSpinner />
+          ) : (
+            <ListaAcoes acoes={acoes.data ?? []} onAbrir={abrirAcao} />
+          ))}
+
+        <View
+          style={[styles.menu, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow }]}
+        >
+          <Pressable
+            onPress={() => dispatch(logout())}
+            accessibilityRole="button"
+            style={styles.menuItem}
+          >
+            <MaterialCommunityIcons name="logout" size={20} color={theme.colors.onSurface} />
+            <Text style={[styles.menuTexto, { color: theme.colors.onSurface }]}>Sair da conta</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { padding: spacing.four, gap: spacing.two, marginBottom: spacing.three },
-  nome: { fontSize: typography.fontSize.xl, fontWeight: '700' },
-  email: { fontSize: typography.fontSize.sm },
-  role: { fontSize: typography.fontSize.sm, fontWeight: '700' },
-  section: { fontSize: typography.fontSize.sm, fontWeight: '700' },
-  metricRow: { flexDirection: 'row', alignItems: 'baseline', gap: spacing.two },
-  metric: { fontSize: typography.fontSize.title, fontWeight: '800' },
-  metricLabel: { fontSize: typography.fontSize.sm, flexShrink: 1 },
+  tela: { flex: 1 },
+  conteudo: { paddingBottom: spacing.four },
+  abas: {
+    flexDirection: 'row',
+    marginTop: spacing.three,
+    marginHorizontal: spacing.two,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  aba: { flex: 1, alignItems: 'center', paddingVertical: 9, borderBottomWidth: 2 },
+  abaTexto: { fontSize: typography.fontSize.sm, fontWeight: '600' },
+  menu: {
+    marginTop: spacing.three,
+    marginHorizontal: spacing.two,
+    borderRadius: 12,
+    shadowOpacity: 0.12,
+    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.two,
+    paddingVertical: spacing.two + 1,
+    paddingHorizontal: spacing.three - 2,
+  },
+  menuTexto: { fontSize: typography.fontSize.base - 1 },
 });
