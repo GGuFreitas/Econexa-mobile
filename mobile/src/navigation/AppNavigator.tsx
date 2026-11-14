@@ -5,6 +5,7 @@ import { AuthGuard } from '@navigation/AuthGuard';
 import RegisterScreen from '@features/auth/screens/RegisterScreen';
 import EsqueciSenhaScreen from '@features/auth/screens/EsqueciSenhaScreen';
 import RedefinirSenhaScreen from '@features/auth/screens/RedefinirSenhaScreen';
+import ExcluirContaScreen from '@features/auth/screens/ExcluirContaScreen';
 import HomeScreen from '@features/home/screens/HomeScreen';
 import { CriarProblemaScreen } from '@features/problemas/screens/CriarProblemaScreen';
 import { DetalheProblemaScreen } from '@features/problemas/screens/DetalheProblemaScreen';
@@ -18,6 +19,7 @@ export type RootStackParamList = {
   Cadastro: undefined;
   EsqueciSenha: undefined;
   RedefinirSenha: { email: string };
+  ExcluirConta: undefined;
   CriarProblema: undefined;
   DetalheProblema: { id: number };
   CriarMobilizacao: { problemaId: number };
@@ -128,6 +130,7 @@ export default function AppNavigator() {
       <Stack.Screen name="Cadastro" component={RegisterScreen} />
       <Stack.Screen name="EsqueciSenha" component={EsqueciSenhaScreen} />
       <Stack.Screen name="RedefinirSenha" component={RedefinirSenhaScreen} />
+      <Stack.Screen name="ExcluirConta" component={ExcluirContaScreen} />
       <Stack.Screen name="CriarProblema" component={CriarGuarded} />
       <Stack.Screen name="DetalheProblema" component={DetalheGuarded} />
       <Stack.Screen name="CriarMobilizacao" component={CriarMobilizacaoGuarded} />
