@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { atualizarStatusMobilizacao } from '../api/listar';
+import { atualizarStatusMobilizacao } from '../api/atualizarStatus';
 
 export function useAtualizarStatus() {
   const qc = useQueryClient();
