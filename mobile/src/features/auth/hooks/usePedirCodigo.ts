@@ -1,5 +1,5 @@
 import { useMutation } from '@tanstack/react-query';
-import { pedirCodigoDeRedefinicao } from '../api/redefinirSenha';
+import { pedirCodigoDeRedefinicao } from '../api/pedirCodigo';
 import { normalizarEmail } from '../utils/email';
 
 export function usePedirCodigo() {
