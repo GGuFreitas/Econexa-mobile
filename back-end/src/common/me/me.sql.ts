@@ -20,6 +20,7 @@ const CONTAGEM_DE_PARTICIPANTES = `(SELECT COUNT(*)::int FROM mobilizacao_partic
 export async function contagensDoUsuario(usuarioId: number): Promise<ContagensDoUsuario> {
   const result = await dbPool.query(
     `SELECT
+       (SELECT criado_em FROM users WHERE id = $1) AS membro_desde,
        (SELECT COUNT(*)::int FROM problemas
          WHERE usuario_id = $1 AND status <> 'removido') AS relatados,
        (SELECT COALESCE(SUM(cont_apoios), 0)::int FROM problemas

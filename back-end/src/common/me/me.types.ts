@@ -33,6 +33,7 @@ export interface AvisoAcaoProxima {
 export type Aviso = AvisoPertoDaMeta | AvisoSemResposta | AvisoAcaoProxima;
 
 export interface ContagensDoUsuario {
+  membro_desde: Date;
   relatados: number;
   apoios_dados: number;
   apoios_recebidos: number;

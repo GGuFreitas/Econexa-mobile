@@ -113,6 +113,14 @@ describe('me: resumo, listas e avisos de quem está logado', () => {
     });
   });
 
+  it('diz desde quando a pessoa está no Mutira', async () => {
+    await dbPool.query(`UPDATE users SET criado_em = '2026-10-03T12:00:00Z' WHERE id = $1`, [eu]);
+
+    const resumo = await resumoDoUsuario(eu);
+
+    expect(resumo.membro_desde.toISOString()).toBe('2026-10-03T12:00:00.000Z');
+  });
+
   it('avisa do relato perto da meta, mas não do que está longe, já bateu ou foi resolvido', async () => {
     const perto = await criarProblemaNoBanco({ usuarioId: eu, titulo: 'Perto' });
     const longe = await criarProblemaNoBanco({ usuarioId: eu, titulo: 'Longe' });
