@@ -10,12 +10,6 @@ export interface CausaConfig {
   priority: ProblemPriority;
 }
 
-/**
- * Fonte única da verdade visual do mapa.
- * Valores de cor/icone espelham o seed do backend (tabela `causas`):
- * Mobilidade, Infraestrutura, Poluição, Desmatamento, Cultura, Segurança, Saúde, Educação.
- * `priority` define o tamanho do marker no mapa (gramática visual Mutira).
- */
 export const causaConfig: Record<CausaId, CausaConfig> = {
   1: { id: 1, nome: 'Mobilidade', cor: '#3b82f6', icone: 'bus', priority: 'high' },
   2: { id: 2, nome: 'Infraestrutura', cor: '#f59e0b', icone: 'construction', priority: 'medium' },

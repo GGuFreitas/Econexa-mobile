@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 import type { ProblemPriority } from './markerConfig';
 
-/** Tamanho do marker no mapa por prioridade (gramática visual: Prioridade = Tamanho). */
 export const markerSizeByPriority: Record<ProblemPriority, number> = {
   critical: 46,
   high: 40,
@@ -9,10 +8,8 @@ export const markerSizeByPriority: Record<ProblemPriority, number> = {
   low: 28,
 };
 
-/** Largura do anel de mobilização (estado) ao redor do marker. */
 export const markerRingWidth = 3;
 
-/** Cores de estado (semântica) usadas no mapa. */
 export const mapStateColors = {
   resolvido: '#2E7D32',
   emAnalise: '#F57F17',
@@ -21,13 +18,11 @@ export const mapStateColors = {
   mobilizando: '#2E7D32',
 };
 
-/** Tokens de animação do mapa (spring). */
 export const mapAnimation = {
   spring: { damping: 18, stiffness: 140 },
   ringPulseDuration: 1600,
 };
 
-/** Sombra padrão dos elementos flutuantes do mapa (FAB, bottom sheet handle). */
 export const mapShadow = Platform.select({
   ios: {
     shadowColor: '#0A1F44',
