@@ -7,6 +7,7 @@ export type User = {
   role: 'citizen' | 'specialist' | 'admin';
   vote_weight: number;
   email_verified: boolean;
+  has_password: boolean;
 };
 
 export type SituacaoDaSessao = 'restaurando' | 'autenticado' | 'anonimo' | 'erroDeRede';
