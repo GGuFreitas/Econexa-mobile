@@ -1,0 +1,8 @@
+{$DOMINIO_API} {
+	encode gzip
+	reverse_proxy backend:5000
+}
+
+{$DOMINIO_ARQUIVOS} {
+	reverse_proxy minio:9000
+}
