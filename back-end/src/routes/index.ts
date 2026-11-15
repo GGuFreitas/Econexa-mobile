@@ -5,6 +5,7 @@ import { problemasRoutes } from './problemas/index.js';
 import { mobilizacoesRoutes } from './mobilizacoes/index.js';
 import { orgaosRoutes } from './orgaos/index.js';
 import { contaRoutes } from './conta/index.js';
+import { moderacaoRoutes } from './moderacao/index.js';
 
 export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(authRoutes, { prefix: '/auth' });
@@ -13,4 +14,5 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   await app.register(mobilizacoesRoutes, { prefix: '/mobilizacoes' });
   await app.register(orgaosRoutes, { prefix: '/orgaos' });
   await app.register(contaRoutes, { prefix: '/conta' });
+  await app.register(moderacaoRoutes, { prefix: '/moderacao' });
 }
