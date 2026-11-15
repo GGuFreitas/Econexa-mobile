@@ -1,66 +1,229 @@
-import { View, Text, StyleSheet } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Card } from '@shared/ui';
-import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
 import { getCausa } from '../map/markerConfig';
-import type { Problema } from '../types';
+import { useApoio } from '../hooks/useApoio';
+import { META_APOIOS, progressoMeta } from '../utils/meta';
+import { formatarDistancia } from '../utils/proximidade';
+import type { ApoioResultado, ProblemaListado } from '../types';
+
+type Icone = keyof typeof MaterialCommunityIcons.glyphMap;
 
 interface ProblemCardProps {
-  problema: Problema;
+  problema: ProblemaListado;
   onPress: (id: number) => void;
 }
 
+const BRANCO = '#FFFFFF';
+const BRANCO_SUAVE = 'rgba(255, 255, 255, 0.88)';
+const ESCURO = '#111111';
+
 export function ProblemCard({ problema, onPress }: ProblemCardProps) {
-  const theme = useAppTheme();
   const causa = getCausa(problema.causa_id);
+  const icone = causa.icone as Icone;
+  const { apoiar, desapoiar } = useApoio(problema.id);
+  const [apoio, setApoio] = useState<{ apoiado: boolean; total: number } | null>(null);
+  const [semMovimento, setSemMovimento] = useState(false);
+  const escala = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(setSemMovimento)
+      .catch(() => undefined);
+  }, []);
+
+  const apoiado = apoio?.apoiado ?? false;
+  const total = apoio?.total ?? problema.cont_apoios;
+  const enviando = apoiar.isPending || desapoiar.isPending;
+  const distancia =
+    problema.distancia_m != null ? formatarDistancia(Number(problema.distancia_m)) : null;
+  const local = [distancia, problema.local_nome].filter(Boolean).join(' · ');
+
+  const pulsar = () => {
+    if (semMovimento) return;
+    escala.setValue(1);
+    Animated.sequence([
+      Animated.spring(escala, { toValue: 1.3, useNativeDriver: true, speed: 40, bounciness: 12 }),
+      Animated.spring(escala, { toValue: 1, useNativeDriver: true, speed: 20 }),
+    ]).start();
+  };
+
+  const alternarApoio = () => {
+    const mutacao = apoiado ? desapoiar : apoiar;
+    mutacao.mutate(undefined, {
+      onSuccess: (resultado: ApoioResultado) => {
+        setApoio({ apoiado: resultado.apoiado, total: resultado.cont_apoios });
+        if (resultado.apoiado) pulsar();
+      },
+    });
+  };
 
   return (
-    <Card onPress={() => onPress(problema.id)} style={styles.card}>
-      <View style={[styles.iconWrap, { backgroundColor: causa.cor }]}>
-        <MaterialCommunityIcons
-          name={causa.icone as keyof typeof MaterialCommunityIcons.glyphMap}
-          size={22}
-          color="#FFFFFF"
+    <Pressable
+      onPress={() => onPress(problema.id)}
+      accessibilityRole="button"
+      accessibilityLabel={`${problema.titulo}. ${causa.nome}. ${total} de ${META_APOIOS} apoios.`}
+      style={[styles.card, { backgroundColor: causa.cor }]}
+    >
+      {problema.capa_url ? (
+        <Image
+          source={{ uri: problema.capa_url }}
+          style={StyleSheet.absoluteFill}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
         />
+      ) : (
+        <View style={styles.semFoto}>
+          <MaterialCommunityIcons name={icone} size={96} color="rgba(255, 255, 255, 0.55)" />
+        </View>
+      )}
+
+      <View style={[styles.selo, { backgroundColor: causa.cor }]}>
+        <MaterialCommunityIcons name={icone} size={14} color={BRANCO} />
+        <Text style={styles.seloTexto}>{causa.nome}</Text>
       </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[styles.titulo, { color: theme.colors.onSurface }]} numberOfLines={1}>
+
+      {problema.cont_imagens > 1 && (
+        <View style={styles.contador}>
+          <MaterialCommunityIcons name="image-multiple" size={14} color={BRANCO} />
+          <Text style={styles.contadorTexto}>{problema.cont_imagens}</Text>
+        </View>
+      )}
+
+      <View style={styles.painel}>
+        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+        <View style={[StyleSheet.absoluteFill, styles.veu]} />
+
+        <Text style={styles.titulo} numberOfLines={2}>
           {problema.titulo}
         </Text>
-        {problema.local_nome && (
-          <Text style={[styles.local, { color: theme.colors.onSurfaceVariant }]} numberOfLines={1}>
-            {problema.local_nome}
-          </Text>
-        )}
-        <View style={styles.footer}>
-          <Text style={[styles.causa, { color: causa.cor }]}>{causa.nome}</Text>
-          <View style={styles.apoio}>
-            <MaterialCommunityIcons name="account-group" size={14} color={theme.colors.primary} />
-            <Text style={[styles.apoioText, { color: theme.colors.onSurfaceVariant }]}>
-              {problema.cont_apoios}
+
+        {local !== '' && (
+          <View style={styles.linha}>
+            <MaterialCommunityIcons name="map-marker" size={14} color={BRANCO_SUAVE} />
+            <Text style={styles.sub} numberOfLines={1}>
+              {local}
             </Text>
           </View>
+        )}
+
+        {!problema.capa_url && (
+          <View style={styles.linha}>
+            <MaterialCommunityIcons name="camera-plus" size={14} color={BRANCO_SUAVE} />
+            <Text style={styles.sub}>Ainda sem foto. Quem apoia pode enviar uma.</Text>
+          </View>
+        )}
+
+        <View style={styles.rodape}>
+          <View style={styles.meta}>
+            <View style={styles.barra}>
+              <View style={[styles.barraCheia, { width: `${progressoMeta(total)}%` }]} />
+            </View>
+            <Text style={styles.sub}>
+              <Text style={styles.forte}>{total}</Text> de {META_APOIOS} apoios
+            </Text>
+          </View>
+
+          <Animated.View style={{ transform: [{ scale: escala }] }}>
+            <Pressable
+              onPress={alternarApoio}
+              disabled={enviando}
+              hitSlop={4}
+              accessibilityRole="button"
+              accessibilityLabel={apoiado ? 'Retirar apoio' : 'Apoiar'}
+              accessibilityState={{ selected: apoiado, busy: enviando }}
+              style={[styles.botao, apoiado && styles.botaoAtivo]}
+            >
+              <MaterialCommunityIcons
+                name={apoiado ? 'thumb-up' : 'thumb-up-outline'}
+                size={22}
+                color={apoiado ? ESCURO : BRANCO}
+              />
+            </Pressable>
+          </Animated.View>
         </View>
       </View>
-    </Card>
+    </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, padding: spacing.three },
-  iconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  card: { height: 300, borderRadius: 16, overflow: 'hidden' },
+  semFoto: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    alignItems: 'center',
+    paddingTop: spacing.six,
+  },
+  selo: {
+    position: 'absolute',
+    top: 10,
+    left: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.half,
+    paddingVertical: 3,
+    paddingLeft: 6,
+    paddingRight: 9,
+    borderRadius: 99,
+  },
+  seloTexto: { color: BRANCO, fontSize: typography.fontSize.xs + 1, fontWeight: '600' },
+  contador: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.half,
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+    borderRadius: 6,
+    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+  },
+  contadorTexto: { color: BRANCO, fontSize: typography.fontSize.xs, fontWeight: '500' },
+  painel: {
+    position: 'absolute',
+    left: spacing.one,
+    right: spacing.one,
+    bottom: spacing.one,
+    borderRadius: 12,
+    overflow: 'hidden',
+    paddingVertical: 10,
+    paddingLeft: spacing.two,
+    paddingRight: 10,
+    gap: 5,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+  },
+  veu: { backgroundColor: 'rgba(16, 18, 22, 0.58)' },
+  titulo: { color: BRANCO, fontSize: typography.fontSize.md - 1, fontWeight: '700' },
+  linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.half },
+  sub: { flexShrink: 1, color: BRANCO_SUAVE, fontSize: typography.fontSize.xs + 1 },
+  forte: { color: BRANCO, fontWeight: '700' },
+  rodape: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, marginTop: 2 },
+  meta: { flex: 1, minWidth: 0, gap: 5 },
+  barra: {
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+  },
+  barraCheia: { height: '100%', borderRadius: 2, backgroundColor: BRANCO },
+  botao: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
-  titulo: { fontSize: typography.fontSize.base, fontWeight: '700' },
-  local: { fontSize: typography.fontSize.xs },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, marginTop: spacing.one },
-  causa: { fontSize: typography.fontSize.xs, fontWeight: '700' },
-  apoio: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  apoioText: { fontSize: typography.fontSize.xs },
+  botaoAtivo: { backgroundColor: BRANCO, borderColor: BRANCO },
 });

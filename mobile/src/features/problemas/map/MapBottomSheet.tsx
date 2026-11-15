@@ -5,6 +5,7 @@ import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { typography } from '@shared/theme/typography';
 import { spacing } from '@shared/theme/spacing';
 import { getCausa } from './markerConfig';
+import { progressoMeta } from '../utils/meta';
 import type { Problema } from '../types';
 
 interface MapBottomSheetProps {
@@ -15,8 +16,6 @@ interface MapBottomSheetProps {
   onApoiar?: () => void;
   apoiando?: boolean;
 }
-
-const META_APOIOS = 50;
 
 export function MapBottomSheet({
   problema,
@@ -30,7 +29,7 @@ export function MapBottomSheet({
   if (!problema) return null;
 
   const causa = getCausa(problema.causa_id);
-  const progresso = Math.min(100, Math.round((problema.cont_apoios / META_APOIOS) * 100));
+  const progresso = progressoMeta(problema.cont_apoios);
 
   return (
     <BottomSheet visible={visible} onDismiss={onDismiss}>
