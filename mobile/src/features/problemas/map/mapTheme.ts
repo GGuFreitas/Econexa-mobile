@@ -25,7 +25,7 @@ export const mapAnimation = {
 
 export const mapShadow = Platform.select({
   ios: {
-    shadowColor: '#0A1F44',
+    shadowColor: '#1E1410',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
