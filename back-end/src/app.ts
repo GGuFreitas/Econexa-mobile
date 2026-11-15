@@ -7,7 +7,10 @@ import fastify from 'fastify';
 
 const app = fastify({
   trustProxy: true,
-  logger: { transport: { target: 'pino-pretty', options: { colorize: true } } },
+  logger:
+    env.NODE_ENV === 'production'
+      ? true
+      : { transport: { target: 'pino-pretty', options: { colorize: true } } },
   bodyLimit: 1048576,
 });
 

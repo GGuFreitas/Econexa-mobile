@@ -4,12 +4,14 @@ import { emTransacao, type Executor } from '@shared/transacao.js';
 import { enviarObjeto, removerObjeto } from '@shared/storage.js';
 import { usuarioApoiou } from '@common/apoios/apoios.sql.js';
 import {
+  invalidarCacheDeProblemas,
   podeAdicionarEvidencia,
   podeGerenciarProblema,
 } from '@common/problemas/problemas.handler.js';
 import { getProblemaById } from '@common/problemas/problemas.sql.js';
 import { registrarEvento } from '@common/problemaEventos/problemaEventos.handler.js';
 import * as sql from './imagens.sql.js';
+import { normalizarImagem } from './imagens.normalizacao.js';
 import type { EvidenciaProblemaInput, Imagem, ImagemInput } from './imagens.types.js';
 
 export const TAMANHO_MAXIMO_IMAGEM = 5 * 1024 * 1024;
@@ -90,13 +92,16 @@ export async function enviarEvidenciaProblema(
     throw new AppError('Apoie este problema para poder adicionar evidência a ele.', 403);
   }
 
+  const conteudo = await normalizarImagem(input.conteudo, input.mimetype);
+
   const existentes = await sql.contarImagensDaEntidade('problema', input.problemaId);
   const chave = `problema/${input.problemaId}/${randomUUID()}.${EXTENSAO_POR_MIME[input.mimetype]}`;
-  const url = await enviarObjeto(chave, input.conteudo, input.mimetype);
+  const url = await enviarObjeto(chave, conteudo, input.mimetype);
 
+  let imagem: Imagem;
   try {
-    return await emTransacao(async (executor) => {
-      const imagem = await sql.insertImagem(
+    imagem = await emTransacao(async (executor) => {
+      const inserida = await sql.insertImagem(
         {
           tipo_entidade: 'problema',
           entidade_id: input.problemaId,
@@ -112,15 +117,18 @@ export async function enviarEvidenciaProblema(
           problemaId: input.problemaId,
           tipo: 'EVIDENCIA_ADICIONADA',
           usuarioId: input.usuarioId,
-          dados: { imagem_id: imagem.id, url: imagem.url },
+          dados: { imagem_id: inserida.id, url: inserida.url },
         },
         executor,
       );
 
-      return imagem;
+      return inserida;
     });
   } catch (erro) {
     await removerObjeto(chave);
     throw erro;
   }
+
+  await invalidarCacheDeProblemas();
+  return imagem;
 }

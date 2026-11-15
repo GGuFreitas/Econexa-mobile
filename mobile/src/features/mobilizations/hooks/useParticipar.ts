@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { participarMobilizacao } from '../api/listar';
+import { participarMobilizacao } from '../api/participar';
 
 export function useParticipar() {
   const qc = useQueryClient();

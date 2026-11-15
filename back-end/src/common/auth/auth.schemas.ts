@@ -1,15 +1,77 @@
 import { z } from 'zod';
 
-export const registerSchema = z.object({
-  nome: z.string().min(2, 'Informe o nome completo.'),
-  email: z.email('Informe um e-mail válido.'),
-  password: z.string().min(6, 'A senha deve ter ao menos 6 caracteres.'),
+const CORPO_INVALIDO = { error: 'Corpo da requisição inválido.' };
+
+const email = z.email('Informe um e-mail válido.').max(255, 'Informe um e-mail válido.');
+
+const senhaNova = z
+  .string({ error: 'Informe a senha.' })
+  .min(8, 'A senha deve ter ao menos 8 caracteres.')
+  .max(128, 'A senha deve ter no máximo 128 caracteres.');
+
+const refreshToken = z
+  .string({ error: 'Informe o refresh token.' })
+  .min(1, 'Informe o refresh token.')
+  .max(512, 'Refresh token inválido.');
+
+export const cadastroSchema = z.object(
+  {
+    nome: z
+      .string({ error: 'Informe o nome completo.' })
+      .trim()
+      .min(2, 'Informe o nome completo.')
+      .max(255, 'O nome deve ter no máximo 255 caracteres.'),
+    email,
+    password: senhaNova,
+  },
+  CORPO_INVALIDO,
+);
+
+export const loginSchema = z.object(
+  {
+    email,
+    password: z.string({ error: 'Informe a senha.' }).min(1, 'Informe a senha.'),
+  },
+  CORPO_INVALIDO,
+);
+
+export const refreshTokenSchema = z.object({ refreshToken }, CORPO_INVALIDO);
+
+export const esqueciSenhaSchema = z.object({ email }, CORPO_INVALIDO);
+
+export const redefinirSenhaSchema = z.object(
+  {
+    email,
+    code: z
+      .string({ error: 'Informe o código.' })
+      .trim()
+      .regex(/^\d{6}$/, 'O código tem 6 dígitos.'),
+    password: senhaNova,
+  },
+  CORPO_INVALIDO,
+);
+
+export const googleSchema = z.object(
+  {
+    idToken: z
+      .string({ error: 'Informe o token do Google.' })
+      .min(1, 'Informe o token do Google.')
+      .max(4096, 'Token do Google inválido.'),
+  },
+  CORPO_INVALIDO,
+);
+
+export const exclusaoDeContaSchema = z.object(
+  {
+    password: z.string().max(128, 'Senha inválida.').optional(),
+  },
+  CORPO_INVALIDO,
+);
+
+export const confirmarEmailQuerySchema = z.object({
+  token: z.string().min(1).max(512),
 });
 
-export const loginSchema = z.object({
-  email: z.email('Informe um e-mail válido.'),
-  password: z.string().min(6, 'A senha deve ter ao menos 6 caracteres.'),
-});
-
-export type RegisterSchema = z.infer<typeof registerSchema>;
+export type CadastroSchema = z.infer<typeof cadastroSchema>;
 export type LoginSchema = z.infer<typeof loginSchema>;
+export type RedefinirSenhaSchema = z.infer<typeof redefinirSenhaSchema>;

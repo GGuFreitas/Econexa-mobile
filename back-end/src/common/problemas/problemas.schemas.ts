@@ -1,6 +1,5 @@
 import { z } from 'zod';
 
-// Contexto Brasil: mantém o mapa dentro das fronteiras nacionais.
 export const BRASIL_BBOX = { minLat: -33.75, maxLat: 5.27, minLng: -73.99, maxLng: -34.79 };
 
 export const criarProblemaSchema = z.object({

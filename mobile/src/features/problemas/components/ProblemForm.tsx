@@ -61,6 +61,7 @@ export function ProblemForm({
       quality: 0.8,
       allowsEditing: true,
       aspect: [4, 3],
+      exif: false,
     });
     if (resultado.canceled) return;
     const manipulado = await manipulateAsync(resultado.assets[0].uri, [

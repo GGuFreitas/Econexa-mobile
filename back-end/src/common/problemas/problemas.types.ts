@@ -22,6 +22,11 @@ export interface Problema {
   distancia_m?: number;
 }
 
+export interface ProblemaListado extends Problema {
+  capa_url: string | null;
+  cont_imagens: number;
+}
+
 export interface CriarProblemaInput {
   usuarioId: number;
   titulo: string;
@@ -36,6 +41,7 @@ export interface CriarProblemaInput {
 }
 
 export interface ProblemaDetalhe extends Problema {
+  apoiado: boolean;
   pode_encaminhar: boolean;
   pode_adicionar_evidencia: boolean;
   transicoes_permitidas: ProblemaStatus[];
@@ -62,11 +68,14 @@ export interface FiltroProblemas {
   tipo?: ProblemaTipo;
   status?: ProblemaStatus;
   escopo?: ProblemaEscopo;
+  relatadoPor?: number;
+  apoiadoPor?: number;
 }
 
 export interface ListarProblemasQuery extends FiltroProblemas {
   pagina?: number;
   limite?: number;
+  recentesPrimeiro?: boolean;
 }
 
 export interface EstatisticasProblemas {

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import glifos from '@expo/vector-icons/build/vendor/react-native-vector-icons/glyphmaps/MaterialCommunityIcons.json';
 import { causaConfig, causaList, getCausa } from './markerConfig';
 
 describe('markerConfig', () => {
@@ -10,6 +11,14 @@ describe('markerConfig', () => {
   it('espelha cor/icone do seed do backend', () => {
     expect(causaConfig[1]).toMatchObject({ nome: 'Mobilidade', cor: '#3b82f6', icone: 'bus' });
     expect(causaConfig[7]).toMatchObject({ nome: 'Saúde', cor: '#ec4899', icone: 'heart' });
+  });
+
+  it('todo ícone de causa existe na família Material Community', () => {
+    const invalidos = causaList
+      .map((causa) => causa.icone)
+      .filter((icone) => !(icone in glifos));
+
+    expect(invalidos).toEqual([]);
   });
 
   it('getCausa retorna fallback para id desconhecido', () => {

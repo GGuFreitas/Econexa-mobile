@@ -14,6 +14,7 @@ import type {
   ListarProblemasQuery,
   Problema,
   ProblemaDetalhe,
+  ProblemaListado,
   ProblemaStatus,
   ResultadoCriacaoProblema,
 } from './problemas.types.js';
@@ -73,6 +74,7 @@ async function montarDetalhe(
   if (usuarioId == null || role == null) {
     return {
       ...problema,
+      apoiado: false,
       pode_encaminhar: false,
       pode_adicionar_evidencia: false,
       transicoes_permitidas: [],
@@ -80,12 +82,13 @@ async function montarDetalhe(
   }
 
   const gerencia = podeGerenciarProblema(problema, usuarioId, role);
-  const apoiou = gerencia ? false : await usuarioApoiou(problema.id, usuarioId);
+  const apoiou = await usuarioApoiou(problema.id, usuarioId);
   const encaminhavel =
     gerencia && problema.status !== 'removido' && (await existeOrgaoDisponivel(problema.id));
 
   return {
     ...problema,
+    apoiado: apoiou,
     pode_encaminhar: encaminhavel,
     pode_adicionar_evidencia: podeAdicionarEvidencia(problema, usuarioId, role, apoiou),
     transicoes_permitidas: transicoesDisponiveis(problema, usuarioId, role),
@@ -149,9 +152,9 @@ export async function criarProblema(
   return { criado: true, problema };
 }
 
-export async function listarProblemas(query: ListarProblemasQuery): Promise<Problema[]> {
+export async function listarProblemas(query: ListarProblemasQuery): Promise<ProblemaListado[]> {
   const cacheKey = `${LIST_CACHE_PREFIXO}${JSON.stringify(query)}`;
-  const cached = await cache.get<Problema[]>(cacheKey);
+  const cached = await cache.get<ProblemaListado[]>(cacheKey);
   if (cached) return cached;
 
   const problemas = await sql.listarProblemas(query);

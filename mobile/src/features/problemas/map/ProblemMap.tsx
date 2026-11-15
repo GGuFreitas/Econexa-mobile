@@ -14,9 +14,8 @@ import { MapBottomSheet } from './MapBottomSheet';
 import { MapFilters } from './MapFilters';
 import { MapLegend } from './MapLegend';
 import { PertoDeVoce } from './PertoDeVoce';
+import { RAIO_PERTO_METROS } from '../utils/proximidade';
 import type { Problema } from '../types';
-
-const RAIO_MAPA_METROS = 8000;
 
 interface ProblemMapProps {
   onRelatar?: () => void;
@@ -36,7 +35,7 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
   const { data: problemas, isLoading, isError } = useProblemas({
     lat: coordenada?.latitude,
     lng: coordenada?.longitude,
-    raio: RAIO_MAPA_METROS,
+    raio: RAIO_PERTO_METROS,
     causaId: filtroCausa ?? undefined,
     status: 'ativo',
     limite: 100,
@@ -45,7 +44,7 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
   const { data: estatisticas } = useEstatisticas({
     lat: coordenada?.latitude,
     lng: coordenada?.longitude,
-    raio: RAIO_MAPA_METROS,
+    raio: RAIO_PERTO_METROS,
     status: 'ativo',
   });
 
@@ -159,7 +158,6 @@ const styles = StyleSheet.create({
     right: 0,
     paddingTop: spacing.two,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E6EC',
   },
   aviso: {
     position: 'absolute',
