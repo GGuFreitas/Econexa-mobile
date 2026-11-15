@@ -2,13 +2,14 @@ import { Button as PaperButton } from 'react-native-paper';
 import type { ButtonProps } from 'react-native-paper';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 
-export function Button(props: ButtonProps) {
+export function Button({ mode = 'contained', ...props }: ButtonProps) {
   const theme = useAppTheme();
+  const preenchido = mode === 'contained';
   return (
     <PaperButton
-      mode="contained"
-      buttonColor={theme.colors.primary}
-      textColor={theme.colors.onPrimary}
+      mode={mode}
+      buttonColor={preenchido ? theme.colors.primary : undefined}
+      textColor={preenchido ? theme.colors.onPrimary : theme.colors.primary}
       {...props}
     />
   );
