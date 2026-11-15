@@ -71,6 +71,16 @@ function construirFiltro(query: FiltroProblemas): FiltroConstruido {
     params.push(query.tags);
     conditions.push(`p.tags && $${params.length}`);
   }
+  if (query.relatadoPor != null) {
+    params.push(query.relatadoPor);
+    conditions.push(`p.usuario_id = $${params.length}`);
+  }
+  if (query.apoiadoPor != null) {
+    params.push(query.apoiadoPor);
+    conditions.push(
+      `EXISTS (SELECT 1 FROM problema_apoios a WHERE a.problema_id = p.id AND a.usuario_id = $${params.length})`,
+    );
+  }
 
   let distancia = '';
   if (query.lat != null && query.lng != null) {
@@ -92,9 +102,11 @@ export async function listarProblemas(query: ListarProblemasQuery): Promise<Prob
   const limitIdx = params.length - 1;
   const offsetIdx = params.length;
 
-  const orderBy = distancia
-    ? 'distancia_m ASC, p.cont_apoios_ponderados DESC, p.criado_em DESC'
-    : 'p.cont_apoios_ponderados DESC, p.criado_em DESC';
+  const orderBy = query.recentesPrimeiro
+    ? 'p.criado_em DESC, p.id DESC'
+    : distancia
+      ? 'distancia_m ASC, p.cont_apoios_ponderados DESC, p.criado_em DESC'
+      : 'p.cont_apoios_ponderados DESC, p.criado_em DESC';
 
   const result = await dbPool.query(
     `SELECT p.*, ST_X(p.geom) AS lng, ST_Y(p.geom) AS lat, img.capa_url, img.cont_imagens${
