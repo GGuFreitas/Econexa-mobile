@@ -4,6 +4,7 @@ import { obterResumo } from './resumo';
 import { listarRelatados } from './relatados';
 import { listarApoiados } from './apoiados';
 import { listarAcoes } from './acoes';
+import { listarIdsApoiados } from './apoios';
 
 vi.mock('@services/api', () => ({
   api: { get: vi.fn() },
@@ -22,6 +23,13 @@ describe('api do perfil', () => {
 
     expect(await obterResumo()).toEqual({ relatados: 3 });
     expect(mockGet).toHaveBeenCalledWith('/me/resumo');
+  });
+
+  it('busca os ids apoiados em /me/apoios', async () => {
+    mockGet.mockResolvedValue({ data: [3, 8] });
+
+    expect(await listarIdsApoiados()).toEqual([3, 8]);
+    expect(mockGet).toHaveBeenCalledWith('/me/apoios');
   });
 
   it('busca relatados, apoiados e ações com o limite pedido', async () => {
