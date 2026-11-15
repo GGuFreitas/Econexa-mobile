@@ -1,12 +1,10 @@
-import { useSelector } from 'react-redux';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, StyleSheet } from 'react-native';
 import { Header, ScreenWrapper, Card, Button, LoadingSpinner } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
-import { useAppDispatch } from '@store/hooks';
-import { logout } from '@store/authSlice';
-import type { User } from '@store/authSlice';
+import { useAppSelector } from '@store/hooks';
+import { encerrarSessao } from '@shared/sessao/sessao';
 import { useEstatisticas } from '../hooks';
 import { useLocalizacao } from '@shared/hooks/useLocalizacao';
 
@@ -20,8 +18,7 @@ const RAIO_PERFIL_METROS = 8000;
 
 export function PerfilScreen() {
   const theme = useAppTheme();
-  const dispatch = useAppDispatch();
-  const user = useSelector((state: { auth: { user: User | null } }) => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user);
   const { coordenada } = useLocalizacao();
   const { data: estatisticas } = useEstatisticas({
     lat: coordenada?.latitude,
@@ -32,40 +29,44 @@ export function PerfilScreen() {
 
   if (!user) return <LoadingSpinner />;
 
+  const handleSair = () => encerrarSessao();
+
   return (
     <ScreenWrapper>
       <Header title="Perfil" />
-      <Card style={styles.card}>
-        <Text style={[styles.nome, { color: theme.colors.onSurface }]}>{user.name}</Text>
-        <Text style={[styles.email, { color: theme.colors.onSurfaceVariant }]}>{user.email}</Text>
-        <Text style={[styles.role, { color: theme.colors.primary }]}>
-          {ROLE_LABEL[user.role] ?? user.role}
-        </Text>
-      </Card>
-
-      <Card style={styles.card}>
-        <Text style={[styles.section, { color: theme.colors.onSurfaceVariant }]}>
-          Na sua região
-        </Text>
-        {estatisticas ? (
-          <View style={styles.metricRow}>
-            <Text style={[styles.metric, { color: theme.colors.onSurface }]}>
-              {estatisticas.total}
-            </Text>
-            <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
-              problemas ativos num raio de {RAIO_PERFIL_METROS / 1000} km
-            </Text>
-          </View>
-        ) : (
-          <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
-            Carregando os números da sua região.
+      <ScrollView>
+        <Card style={styles.card}>
+          <Text style={[styles.nome, { color: theme.colors.onSurface }]}>{user.name}</Text>
+          <Text style={[styles.email, { color: theme.colors.onSurfaceVariant }]}>{user.email}</Text>
+          <Text style={[styles.role, { color: theme.colors.primary }]}>
+            {ROLE_LABEL[user.role] ?? user.role}
           </Text>
-        )}
-      </Card>
+        </Card>
 
-      <Button mode="outlined" icon="logout" onPress={() => dispatch(logout())}>
-        Sair da conta
-      </Button>
+        <Card style={styles.card}>
+          <Text style={[styles.section, { color: theme.colors.onSurfaceVariant }]}>
+            Na sua região
+          </Text>
+          {estatisticas ? (
+            <View style={styles.metricRow}>
+              <Text style={[styles.metric, { color: theme.colors.onSurface }]}>
+                {estatisticas.total}
+              </Text>
+              <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
+                problemas ativos num raio de {RAIO_PERFIL_METROS / 1000} km
+              </Text>
+            </View>
+          ) : (
+            <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
+              Carregando os números da sua região.
+            </Text>
+          )}
+        </Card>
+
+        <Button mode="outlined" icon="logout" onPress={handleSair}>
+          Sair da conta
+        </Button>
+      </ScrollView>
     </ScreenWrapper>
   );
 }
