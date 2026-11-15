@@ -16,6 +16,10 @@ export const envSchema = z
     ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
     REFRESH_TOKEN_TTL_DAYS: z.coerce.number().int().positive().default(30),
     APP_PUBLIC_URL: z.string().default('http://localhost:19006'),
+    API_PUBLIC_URL: z
+      .url({ protocol: /^https?$/, error: 'API_PUBLIC_URL deve ser uma URL http(s).' })
+      .default('http://localhost:5000')
+      .transform((valor) => valor.replace(/\/+$/, '')),
     MINIO_ENDPOINT: z.string().default('localhost'),
     MINIO_PORT: z.coerce.number().default(9000),
     MINIO_USE_SSL: booleano,

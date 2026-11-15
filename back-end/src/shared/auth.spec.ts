@@ -21,6 +21,7 @@ function linhaDoBanco(extra: Record<string, unknown> = {}) {
     id: 7,
     email: 'ana@exemplo.invalid',
     role: 'citizen',
+    email_verificado: false,
     bloqueado_em: null,
     sessao_versao: 2,
     ...extra,
@@ -83,7 +84,7 @@ describe('requireAuth', () => {
 
   it('o papel vem do banco, não do token', async () => {
     mockQuery.mockResolvedValue({
-      rows: [linhaDoBanco({ role: 'admin' })],
+      rows: [linhaDoBanco({ role: 'admin', email_verificado: true })],
     });
     const request = requisicao(`Bearer ${assinarAccessToken(7, 2)}`);
 
@@ -93,9 +94,10 @@ describe('requireAuth', () => {
       id: 7,
       email: 'ana@exemplo.invalid',
       role: 'admin',
+      emailVerificado: true,
     });
     expect(mockQuery).toHaveBeenCalledWith(
-      'SELECT id, email, role, bloqueado_em, sessao_versao FROM users WHERE id = $1',
+      'SELECT id, email, role, email_verificado, bloqueado_em, sessao_versao FROM users WHERE id = $1',
       [7],
     );
   });

@@ -37,5 +37,9 @@ export const loginSchema = z.object(
 
 export const refreshTokenSchema = z.object({ refreshToken }, CORPO_INVALIDO);
 
+export const confirmarEmailQuerySchema = z.object({
+  token: z.string().min(1).max(512),
+});
+
 export type CadastroSchema = z.infer<typeof cadastroSchema>;
 export type LoginSchema = z.infer<typeof loginSchema>;
