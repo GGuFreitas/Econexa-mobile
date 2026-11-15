@@ -9,6 +9,7 @@ export interface AuthenticatedUser {
   id: number;
   email: string;
   role: string;
+  emailVerificado: boolean;
 }
 
 declare module 'fastify' {
@@ -55,7 +56,7 @@ async function autenticar(header: string | undefined): Promise<AuthenticatedUser
   }
 
   const result = await dbPool.query(
-    'SELECT id, email, role, bloqueado_em, sessao_versao FROM users WHERE id = $1',
+    'SELECT id, email, role, email_verificado, bloqueado_em, sessao_versao FROM users WHERE id = $1',
     [declaracoes.usuarioId],
   );
   const usuario = result.rows[0];
@@ -71,6 +72,7 @@ async function autenticar(header: string | undefined): Promise<AuthenticatedUser
     id: usuario.id,
     email: usuario.email,
     role: usuario.role,
+    emailVerificado: usuario.email_verificado,
   };
 }
 
