@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { buscarMobilizacao } from '../api/listar';
+import { buscarMobilizacao } from '../api/buscar';
 
 export function useMobilizacao(id: number | null) {
   return useQuery({

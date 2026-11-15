@@ -24,7 +24,7 @@ describe('mobilizacoes handlers', () => {
 
   it('cria mobilização vinculada a um problema existente', async () => {
     mockQuery
-      .mockResolvedValueOnce({ rows: [{ id: 1 }] }) // problemaExiste
+      .mockResolvedValueOnce({ rows: [{ id: 1 }] })
       .mockResolvedValueOnce({ rows: [{ id: 1, problema_id: 1, titulo: 'Mutirão de limpeza' }] })
       .mockResolvedValueOnce({ rows: [{ id: 50 }] })
       .mockResolvedValueOnce({
@@ -56,7 +56,7 @@ describe('mobilizacoes handlers', () => {
   });
 
   it('rejeita criação para problema inexistente', async () => {
-    mockQuery.mockResolvedValueOnce({ rows: [] }); // problemaExiste
+    mockQuery.mockResolvedValueOnce({ rows: [] });
 
     await expect(
       criarMobilizacao({
@@ -119,7 +119,7 @@ describe('mobilizacoes handlers', () => {
   it('permite transição válida de status (agendada -> em_andamento)', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ id: 1, usuario_id: 9, status: 'agendada' }] })
-      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'em_andamento' }] }) // updateStatus
+      .mockResolvedValueOnce({ rows: [{ id: 1, status: 'em_andamento' }] })
       .mockResolvedValueOnce({ rows: [{ id: 1, usuario_id: 9, status: 'em_andamento' }] });
 
     const mobilizacao = await atualizarStatusMobilizacao(1, 'em_andamento', 9, 'citizen');
@@ -157,7 +157,7 @@ describe('mobilizacoes handlers', () => {
   it('participação idempotente retorna contador', async () => {
     mockQuery
       .mockResolvedValueOnce({ rows: [{ id: 1 }] })
-      .mockResolvedValueOnce({ rows: [{ mobilizacao_id: 1 }] }) // participar (inseriu)
+      .mockResolvedValueOnce({ rows: [{ mobilizacao_id: 1 }] })
       .mockResolvedValueOnce({ rows: [{ total: 2 }] });
 
     const resultado = await participarDaMobilizacao(1, 10);

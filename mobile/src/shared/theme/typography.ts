@@ -3,6 +3,7 @@ export const typography = {
     regular: 'System',
     medium: 'System',
     bold: 'System',
+    marca: 'Cardo_700Bold',
   },
   fontSize: {
     xs: 11,

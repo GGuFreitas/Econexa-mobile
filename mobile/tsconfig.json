@@ -13,13 +13,30 @@
     "isolatedModules": true,
     "noEmit": true,
     "paths": {
-      "@features/*": ["./src/features/*"],
-      "@shared/*": ["./src/shared/*"],
-      "@store/*": ["./src/store/*"],
-      "@navigation/*": ["./src/navigation/*"],
-      "@services/*": ["./src/services/*"]
+      "@features/*": [
+        "./src/features/*"
+      ],
+      "@shared/*": [
+        "./src/shared/*"
+      ],
+      "@store/*": [
+        "./src/store/*"
+      ],
+      "@navigation/*": [
+        "./src/navigation/*"
+      ],
+      "@services/*": [
+        "./src/services/*"
+      ]
     }
   },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules", "babel.config.js"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
+  "exclude": [
+    "node_modules",
+    "babel.config.js"
+  ],
+  "extends": "expo/tsconfig.base"
 }
