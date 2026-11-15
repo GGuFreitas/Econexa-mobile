@@ -38,6 +38,7 @@ export function PerfilScreen() {
 
   const handleSair = () => encerrarSessao();
   const handleExcluirConta = () => navigation.navigate('ExcluirConta');
+  const handleModeracao = () => navigation.navigate('Moderacao');
 
   return (
     <ScreenWrapper>
@@ -72,6 +73,12 @@ export function PerfilScreen() {
             </Text>
           )}
         </Card>
+
+        {user.role === 'admin' && (
+          <Button mode="outlined" icon="shield-account" onPress={handleModeracao}>
+            Moderação
+          </Button>
+        )}
 
         <Button mode="outlined" icon="logout" onPress={handleSair}>
           Sair da conta
