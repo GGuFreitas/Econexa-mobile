@@ -36,6 +36,9 @@ export const registroLimiter = new RateLimiter(5, UM_MINUTO);
 export const renovacaoSessaoLimiter = new RateLimiter(30, UM_MINUTO);
 export const confirmacaoEmailLimiter = new RateLimiter(20, UM_MINUTO);
 export const reenvioVerificacaoLimiter = new RateLimiter(3, UMA_HORA);
+export const esqueciSenhaLimiter = new RateLimiter(3, UMA_HORA);
+export const esqueciSenhaPorEmailLimiter = new RateLimiter(3, UMA_HORA);
+export const redefinicaoSenhaLimiter = new RateLimiter(10, UM_MINUTO);
 
 export function porUsuario(request: FastifyRequest): string {
   return String(request.user!.id);
@@ -43,6 +46,10 @@ export function porUsuario(request: FastifyRequest): string {
 
 export function porOrigem(request: FastifyRequest): string {
   return request.ip;
+}
+
+export function porEmail(email: string): string {
+  return email.trim().toLowerCase();
 }
 
 export function exigirCota(limiter: RateLimiter, chave: string): void {

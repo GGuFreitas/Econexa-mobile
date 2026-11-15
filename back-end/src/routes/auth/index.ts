@@ -5,10 +5,15 @@ import { requireAuth } from '@shared/auth.js';
 import { responderHtml } from '@shared/html.js';
 import {
   confirmacaoEmailLimiter,
+  esqueciSenhaLimiter,
+  esqueciSenhaPorEmailLimiter,
+  exigirCota,
   loginLimiter,
+  porEmail,
   porOrigem,
   porUsuario,
   rateLimitGuard,
+  redefinicaoSenhaLimiter,
   reenvioVerificacaoLimiter,
   registroLimiter,
   renovacaoSessaoLimiter,
@@ -16,7 +21,9 @@ import {
 import {
   cadastroSchema,
   confirmarEmailQuerySchema,
+  esqueciSenhaSchema,
   loginSchema,
+  redefinirSenhaSchema,
   refreshTokenSchema,
 } from '@common/auth/auth.schemas.js';
 import {
@@ -24,7 +31,9 @@ import {
   confirmarEmail,
   entrarComSenha,
   obterUsuarioAtual,
+  redefinirSenha,
   reenviarVerificacao,
+  solicitarRedefinicaoDeSenha,
 } from '@common/auth/auth.handler.js';
 import { renovarSessao, revogarRefreshToken } from '@common/auth/sessao.js';
 import { paginaDaConfirmacao, paginaDeMuitasTentativas } from '@common/auth/auth.paginas.js';
@@ -90,4 +99,30 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     const resultado = consulta.success ? await confirmarEmail(consulta.data.token) : 'invalido';
     return responderHtml(reply, paginaDaConfirmacao(resultado));
   });
+
+  app.post(
+    '/forgot-password',
+    { preHandler: rateLimitGuard(esqueciSenhaLimiter, porOrigem) },
+    async (request, reply) => {
+      const { email } = parse(esqueciSenhaSchema, request.body);
+      exigirCota(esqueciSenhaPorEmailLimiter, porEmail(email));
+
+      void solicitarRedefinicaoDeSenha(email).catch((erro: unknown) => {
+        request.log.error({ err: erro }, 'Falha ao processar o pedido de código de redefinição.');
+      });
+
+      return reply.status(202).send({
+        message: 'Se existir uma conta com este e-mail, enviamos um código para redefinir a senha.',
+      });
+    },
+  );
+
+  app.post(
+    '/reset-password',
+    { preHandler: rateLimitGuard(redefinicaoSenhaLimiter, porOrigem) },
+    async (request, reply) => {
+      const body = parse(redefinirSenhaSchema, request.body);
+      return ok(reply, await redefinirSenha(body));
+    },
+  );
 }

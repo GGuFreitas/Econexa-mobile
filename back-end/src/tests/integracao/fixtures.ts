@@ -17,7 +17,7 @@ export async function limparBanco(): Promise<void> {
   await dbPool.query(`
     TRUNCATE problema_eventos, problema_encaminhamentos, problema_denuncias,
              problema_apoios, problema_comentarios, mobilizacao_participantes,
-             mobilizacoes, imagens, problemas, refresh_tokens,
+             mobilizacoes, imagens, problemas, refresh_tokens, password_reset_tokens,
              email_verification_tokens, users
     RESTART IDENTITY CASCADE
   `);

@@ -28,6 +28,12 @@ export type LoginInput = {
   password: string;
 };
 
+export type RedefinicaoDeSenhaInput = {
+  email: string;
+  code: string;
+  password: string;
+};
+
 export type ResultadoDaConfirmacao = 'confirmado' | 'ja_confirmado' | 'invalido';
 
 export interface UsuarioRow {
@@ -65,4 +71,9 @@ export interface RefreshTokenReivindicado {
 export interface SituacaoDaCadeia {
   usuario_id: number;
   viva: boolean;
+}
+
+export interface CodigoReservado {
+  id: number;
+  codigo_hash: string;
 }

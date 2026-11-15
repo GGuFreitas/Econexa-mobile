@@ -4,7 +4,13 @@ import jwt from 'jsonwebtoken';
 import { dbPool } from '@config/database.js';
 import { env } from '@config/env.js';
 import { enviarEmail } from '@shared/email.js';
-import { cadastrarUsuario, confirmarEmail, entrarComSenha } from './auth.handler.js';
+import {
+  cadastrarUsuario,
+  confirmarEmail,
+  entrarComSenha,
+  redefinirSenha,
+  solicitarRedefinicaoDeSenha,
+} from './auth.handler.js';
 import { hashDeSegredo } from './segredos.js';
 
 vi.mock('@config/database.js', () => ({
@@ -273,5 +279,63 @@ describe('confirmação de e-mail', () => {
 
     bancoFalso();
     expect(await confirmarEmail('desconhecido')).toBe('invalido');
+  });
+});
+
+describe('esqueci minha senha', () => {
+  it('e-mail sem conta não grava código nem manda e-mail', async () => {
+    bancoFalso();
+
+    await solicitarRedefinicaoDeSenha('ninguem@exemplo.invalid');
+
+    expect(consultasCom('password_reset_tokens')).toHaveLength(0);
+    expect(mockEnviarEmail).not.toHaveBeenCalled();
+  });
+
+  it('invalida os códigos anteriores antes de gravar o hash do código enviado', async () => {
+    let hashGravado = '';
+    bancoFalso(
+      ['FROM users WHERE email', () => [linhaUsuario()]],
+      ['INSERT INTO password_reset_tokens', (params) => {
+        hashGravado = String(params[1]);
+        return [];
+      }],
+    );
+
+    await solicitarRedefinicaoDeSenha('Ana@Exemplo.Invalid');
+
+    const escritas = mockQuery.mock.calls
+      .map(([sql]) => String(sql))
+      .filter((sql) => sql.includes('password_reset_tokens'));
+    expect(escritas[0]).toContain('UPDATE password_reset_tokens SET usado_em');
+    expect(escritas[1]).toContain('INSERT INTO password_reset_tokens');
+
+    const mensagem = mockEnviarEmail.mock.calls[0][0];
+    const codigo = /^\d{6}$/m.exec(mensagem.corpo)![0];
+    expect(mensagem.assunto).toBe('Seu código para redefinir a senha do Mutira');
+    expect(hashDeSegredo(codigo)).toBe(hashGravado);
+  });
+
+  it('e-mail inexistente e código errado dão o mesmo CODIGO_INVALIDO', async () => {
+    bancoFalso();
+    const semConta = await erroDe(
+      redefinirSenha({ email: 'ninguem@exemplo.invalid', code: '123456', password: 'senha-nova-1' }),
+    );
+
+    bancoFalso(
+      ['FROM users WHERE email', () => [linhaUsuario()]],
+      ['SET tentativas = tentativas + 1', () => [{ id: 3, codigo_hash: hashDeSegredo('654321') }]],
+    );
+    const codigoErrado = await erroDe(
+      redefinirSenha({ email: 'ana@exemplo.invalid', code: '123456', password: 'senha-nova-1' }),
+    );
+
+    expect(semConta).toEqual({
+      statusCode: 400,
+      message: 'Código inválido ou expirado. Peça um novo código.',
+      code: 'CODIGO_INVALIDO',
+    });
+    expect(codigoErrado).toEqual(semConta);
+    expect(consultasCom('SET usado_em = NOW() WHERE id')).toHaveLength(0);
   });
 });
