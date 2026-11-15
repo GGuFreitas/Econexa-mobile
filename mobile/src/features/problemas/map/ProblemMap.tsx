@@ -106,7 +106,7 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
       </View>
 
       {!erro && coordenada && estatisticas && (
-        <PertoDeVoce total={estatisticas.total} raioKm={RAIO_MAPA_METROS / 1000} top={abaixoDoTopo} />
+        <PertoDeVoce total={estatisticas.total} raioKm={RAIO_PERTO_METROS / 1000} top={abaixoDoTopo} />
       )}
 
       {erro && (
