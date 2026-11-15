@@ -7,6 +7,7 @@ export type PublicUser = {
   role: UserRole;
   vote_weight: number;
   email_verified: boolean;
+  has_password: boolean;
 };
 
 export type Sessao = {
@@ -16,6 +17,10 @@ export type Sessao = {
   tokenType: 'Bearer';
   user: PublicUser;
 };
+
+export type AvisoDeSessao = 'SENHA_DESATIVADA';
+
+export type SessaoComAviso = Sessao & { aviso?: AvisoDeSessao };
 
 export type CadastroInput = {
   nome: string;
@@ -43,18 +48,19 @@ export interface UsuarioRow {
   role: string;
   peso_voto: number;
   email_verificado: boolean;
+  tem_senha: boolean;
   bloqueado_em: Date | null;
   sessao_versao: number;
 }
 
 export interface CredenciaisRow extends UsuarioRow {
-  senha: string;
+  senha: string | null;
 }
 
 export interface NovoUsuario {
   nome: string;
   email: string;
-  senhaHash: string;
+  senhaHash: string | null;
   emailVerificado: boolean;
 }
 

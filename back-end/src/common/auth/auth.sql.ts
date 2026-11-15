@@ -3,7 +3,7 @@ import type { Executor } from '@shared/transacao.js';
 import type { CodigoReservado, CredenciaisRow, NovoUsuario, UsuarioRow } from './auth.types.js';
 
 export const COLUNAS_DO_USUARIO = `id, nome, email, role, peso_voto, email_verificado,
-  bloqueado_em, sessao_versao`;
+  senha IS NOT NULL AS tem_senha, bloqueado_em, sessao_versao`;
 
 export async function buscarCredenciaisPorEmail(email: string): Promise<CredenciaisRow | null> {
   const result = await dbPool.query(
@@ -20,6 +20,17 @@ export async function buscarUsuarioPorEmail(
   const result = await executor.query(`SELECT ${COLUNAS_DO_USUARIO} FROM users WHERE email = $1`, [
     email,
   ]);
+  return result.rows[0] ?? null;
+}
+
+export async function travarUsuarioPorEmail(
+  email: string,
+  executor: Executor,
+): Promise<UsuarioRow | null> {
+  const result = await executor.query(
+    `SELECT ${COLUNAS_DO_USUARIO} FROM users WHERE email = $1 FOR UPDATE`,
+    [email],
+  );
   return result.rows[0] ?? null;
 }
 
@@ -162,4 +173,46 @@ export async function gravarSenhaRedefinida(
     [usuarioId, senhaHash],
   );
   return result.rows[0] ?? null;
+}
+
+export async function buscarUsuarioPorContaGoogle(
+  sub: string,
+  executor: Executor = dbPool,
+): Promise<UsuarioRow | null> {
+  const result = await executor.query(
+    `SELECT ${COLUNAS_DO_USUARIO} FROM users
+     WHERE id = (
+       SELECT usuario_id FROM usuario_oauth_contas
+       WHERE provider = 'google' AND provider_user_id = $1
+     )`,
+    [sub],
+  );
+  return result.rows[0] ?? null;
+}
+
+export async function vincularContaGoogle(
+  usuarioId: number,
+  sub: string,
+  executor: Executor = dbPool,
+): Promise<void> {
+  await executor.query(
+    `INSERT INTO usuario_oauth_contas (usuario_id, provider, provider_user_id)
+     VALUES ($1, 'google', $2)
+     ON CONFLICT (provider, provider_user_id) DO NOTHING`,
+    [usuarioId, sub],
+  );
+}
+
+export async function desativarSenhaEConfirmarEmail(
+  usuarioId: number,
+  executor: Executor = dbPool,
+): Promise<UsuarioRow> {
+  const result = await executor.query(
+    `UPDATE users
+     SET senha = NULL, email_verificado = true, email_verificado_em = COALESCE(email_verificado_em, NOW())
+     WHERE id = $1
+     RETURNING ${COLUNAS_DO_USUARIO}`,
+    [usuarioId],
+  );
+  return result.rows[0];
 }

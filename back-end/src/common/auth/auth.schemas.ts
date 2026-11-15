@@ -51,6 +51,16 @@ export const redefinirSenhaSchema = z.object(
   CORPO_INVALIDO,
 );
 
+export const googleSchema = z.object(
+  {
+    idToken: z
+      .string({ error: 'Informe o token do Google.' })
+      .min(1, 'Informe o token do Google.')
+      .max(4096, 'Token do Google inválido.'),
+  },
+  CORPO_INVALIDO,
+);
+
 export const confirmarEmailQuerySchema = z.object({
   token: z.string().min(1).max(512),
 });

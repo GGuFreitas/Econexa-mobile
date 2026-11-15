@@ -6,6 +6,16 @@ const booleano = z
   .default('false')
   .transform((valor) => valor === 'true');
 
+const listaSeparadaPorVirgula = z
+  .string()
+  .default('')
+  .transform((valor) =>
+    valor
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean),
+  );
+
 export const envSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
@@ -20,6 +30,7 @@ export const envSchema = z
       .url({ protocol: /^https?$/, error: 'API_PUBLIC_URL deve ser uma URL http(s).' })
       .default('http://localhost:5000')
       .transform((valor) => valor.replace(/\/+$/, '')),
+    GOOGLE_CLIENT_IDS: listaSeparadaPorVirgula,
     MINIO_ENDPOINT: z.string().default('localhost'),
     MINIO_PORT: z.coerce.number().default(9000),
     MINIO_USE_SSL: booleano,

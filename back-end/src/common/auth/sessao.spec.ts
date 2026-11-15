@@ -40,6 +40,7 @@ function linhaUsuario(extra: Record<string, unknown> = {}) {
     role: 'citizen',
     peso_voto: 1,
     email_verificado: true,
+    tem_senha: true,
     bloqueado_em: null,
     sessao_versao: 2,
     ...extra,
@@ -75,6 +76,7 @@ describe('emitirSessao', () => {
       role: 'citizen',
       vote_weight: 1,
       email_verified: true,
+      has_password: true,
     });
   });
 });
