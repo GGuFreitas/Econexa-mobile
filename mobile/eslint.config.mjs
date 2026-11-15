@@ -30,6 +30,8 @@ export default [
         require: 'readonly',
         __dirname: 'readonly',
         React: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
       },
     },
     settings: {
