@@ -27,3 +27,15 @@ export async function excluirConta(usuarioId: number, senha?: string): Promise<v
     await anonimizar(usuarioId, executor);
   });
 }
+
+export async function excluirContaPorEmail(email: string): Promise<boolean> {
+  const usuarioId = await sql.buscarIdPorEmail(email.trim().toLowerCase());
+  if (usuarioId === null) return false;
+
+  return emTransacao(async (executor) => {
+    const conta = await sql.travarConta(usuarioId, executor);
+    if (!conta || conta.excluido_em) return false;
+    await anonimizar(usuarioId, executor);
+    return true;
+  });
+}

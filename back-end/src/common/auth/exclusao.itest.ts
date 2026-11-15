@@ -9,6 +9,7 @@ import {
   limparBanco,
 } from '../../tests/integracao/fixtures.js';
 import { criarServidor } from '../../tests/integracao/servidor.js';
+import { excluirContaPorEmail } from './exclusao.js';
 
 const EMAIL = 'clara.exclusao@exemplo.invalid';
 const SENHA = 'senha-da-clara';
@@ -129,5 +130,23 @@ describe('exclusão de conta', () => {
     expect(ausente.statusCode).toBe(400);
     const linha = await dbPool.query('SELECT nome, excluido_em FROM users WHERE id = $1', [sessao.user.id]);
     expect(linha.rows[0]).toEqual({ nome: 'Clara Exclusão', excluido_em: null });
+  });
+
+  it('a moderação exclui por e-mail um pedido recebido fora do app', async () => {
+    const sessao = await cadastrar();
+
+    expect(await excluirContaPorEmail('  Clara.Exclusao@Exemplo.Invalid ')).toBe(true);
+    expect(await excluirContaPorEmail(EMAIL)).toBe(false);
+
+    const linha = await dbPool.query('SELECT nome FROM users WHERE id = $1', [sessao.user.id]);
+    expect(linha.rows[0].nome).toBe('Conta excluída');
+  });
+
+  it('a página pública de exclusão responde HTML', async () => {
+    const resposta = await app.inject({ method: 'GET', url: '/api/conta/exclusao' });
+
+    expect(resposta.statusCode).toBe(200);
+    expect(resposta.headers['content-type']).toContain('text/html');
+    expect(resposta.body).toContain('Excluir sua conta');
   });
 });

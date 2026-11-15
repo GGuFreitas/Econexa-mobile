@@ -31,6 +31,7 @@ export const envSchema = z
       .default('http://localhost:5000')
       .transform((valor) => valor.replace(/\/+$/, '')),
     GOOGLE_CLIENT_IDS: listaSeparadaPorVirgula,
+    CONTATO_PRIVACIDADE: z.email().default('privacidade@mutira.local'),
     MINIO_ENDPOINT: z.string().default('localhost'),
     MINIO_PORT: z.coerce.number().default(9000),
     MINIO_USE_SSL: booleano,
