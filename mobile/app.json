@@ -4,6 +4,7 @@
     "slug": "econexa-mobile",
     "version": "1.0.0",
     "sdkVersion": "57.0.0",
+    "scheme": "mutira",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "platforms": [
@@ -18,6 +19,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "br.com.mutira",
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
         "backgroundColor": "#ffffff"
@@ -26,7 +28,8 @@
     "plugins": [
       "expo-font",
       "expo-status-bar",
-      "expo-secure-store"
+      "expo-secure-store",
+      "@react-native-google-signin/google-signin"
     ]
   }
 }

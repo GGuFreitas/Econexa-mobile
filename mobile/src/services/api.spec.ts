@@ -88,6 +88,7 @@ function sessaoDaApi(accessToken: string, refreshToken: string): SessaoDaApi {
       role: 'citizen',
       vote_weight: 1,
       email_verified: false,
+      has_password: true,
     },
   };
 }
@@ -217,6 +218,7 @@ describe('interceptor de sessão da api', () => {
     '/auth/login',
     '/auth/register',
     '/auth/refresh',
+    '/auth/google',
     '/auth/forgot-password',
     '/auth/reset-password',
     '/auth/logout',

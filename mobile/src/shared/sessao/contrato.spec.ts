@@ -13,6 +13,7 @@ const sessao: SessaoDaApi = {
     role: 'specialist',
     vote_weight: 3,
     email_verified: false,
+    has_password: true,
   },
 };
 
@@ -25,7 +26,15 @@ describe('contrato da sessão', () => {
       role: 'specialist',
       vote_weight: 3,
       email_verified: false,
+      has_password: true,
     });
+  });
+
+  it('mapUser reflete conta só-Google, sem senha e com e-mail confirmado', () => {
+    const usuario = mapUser({ ...sessao.user, email_verified: true, has_password: false });
+
+    expect(usuario.email_verified).toBe(true);
+    expect(usuario.has_password).toBe(false);
   });
 
   it('credenciaisDaSessao leva os dois tokens e descarta expiresIn e tokenType', () => {

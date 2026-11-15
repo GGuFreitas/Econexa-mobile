@@ -43,7 +43,7 @@ export default function EsqueciSenhaScreen() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={[styles.explicacao, { color: theme.colors.onSurfaceVariant }]}>
           Informe o e-mail da sua conta. Vamos enviar um código de 6 números para você criar uma
-          senha nova.
+          senha nova. Se você entra com o Google, o mesmo caminho cria uma senha para a conta.
         </Text>
         <MensagemDeRetorno texto={falha} />
         <EsqueciSenhaForm onSubmit={handlePedirCodigo} />
