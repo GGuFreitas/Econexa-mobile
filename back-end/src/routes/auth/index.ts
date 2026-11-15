@@ -7,21 +7,20 @@ import {
   porOrigem,
   rateLimitGuard,
   registroLimiter,
+  renovacaoSessaoLimiter,
 } from '@shared/ratelimit.js';
-import { loginSchema, registerSchema } from '@common/auth/auth.schemas.js';
-import { getMe, loginUser, registerUser } from '@common/auth/auth.handler.js';
+import { cadastroSchema, loginSchema, refreshTokenSchema } from '@common/auth/auth.schemas.js';
+import { cadastrarUsuario, entrarComSenha, obterUsuarioAtual } from '@common/auth/auth.handler.js';
+import { renovarSessao, revogarRefreshToken } from '@common/auth/sessao.js';
 
 export async function authRoutes(app: FastifyInstance): Promise<void> {
   app.post(
     '/register',
     { preHandler: rateLimitGuard(registroLimiter, porOrigem) },
     async (request, reply) => {
-      const body = parse(registerSchema, request.body);
-      const result = await registerUser(body);
-      return created(reply, {
-        message: 'Usuário cadastrado com sucesso.',
-        user: result.user,
-      });
+      const body = parse(cadastroSchema, request.body);
+      const sessao = await cadastrarUsuario(body);
+      return created(reply, { message: 'Usuário cadastrado com sucesso.', ...sessao });
     },
   );
 
@@ -30,17 +29,28 @@ export async function authRoutes(app: FastifyInstance): Promise<void> {
     { preHandler: rateLimitGuard(loginLimiter, porOrigem) },
     async (request, reply) => {
       const body = parse(loginSchema, request.body);
-      const result = await loginUser(body);
-      return ok(reply, {
-        message: 'Login realizado com sucesso.',
-        token: result.token,
-        user: result.user,
-      });
+      const sessao = await entrarComSenha(body);
+      return ok(reply, { message: 'Login realizado com sucesso.', ...sessao });
     },
   );
 
+  app.post(
+    '/refresh',
+    { preHandler: rateLimitGuard(renovacaoSessaoLimiter, porOrigem) },
+    async (request, reply) => {
+      const { refreshToken } = parse(refreshTokenSchema, request.body);
+      return ok(reply, await renovarSessao(refreshToken));
+    },
+  );
+
+  app.post('/logout', async (request, reply) => {
+    const { refreshToken } = parse(refreshTokenSchema, request.body);
+    await revogarRefreshToken(refreshToken);
+    return reply.status(204).send();
+  });
+
   app.get('/me', { preHandler: requireAuth }, async (request, reply) => {
-    const result = await getMe(request.user!.id);
+    const result = await obterUsuarioAtual(request.user!.id);
     return ok(reply, { user: result.user });
   });
 }

@@ -24,12 +24,15 @@ export class RateLimiter {
   }
 }
 
-export const criarProblemaLimiter = new RateLimiter(5, 60_000);
-export const denunciaLimiter = new RateLimiter(3, 60_000);
-export const comentarioLimiter = new RateLimiter(10, 60_000);
-export const encaminhamentoLimiter = new RateLimiter(3, 60_000);
-export const loginLimiter = new RateLimiter(10, 60_000);
-export const registroLimiter = new RateLimiter(5, 60_000);
+const UM_MINUTO = 60_000;
+
+export const criarProblemaLimiter = new RateLimiter(5, UM_MINUTO);
+export const denunciaLimiter = new RateLimiter(3, UM_MINUTO);
+export const comentarioLimiter = new RateLimiter(10, UM_MINUTO);
+export const encaminhamentoLimiter = new RateLimiter(3, UM_MINUTO);
+export const loginLimiter = new RateLimiter(10, UM_MINUTO);
+export const registroLimiter = new RateLimiter(5, UM_MINUTO);
+export const renovacaoSessaoLimiter = new RateLimiter(30, UM_MINUTO);
 
 export function porUsuario(request: FastifyRequest): string {
   return String(request.user!.id);
@@ -39,13 +42,17 @@ export function porOrigem(request: FastifyRequest): string {
   return request.ip;
 }
 
+export function exigirCota(limiter: RateLimiter, chave: string): void {
+  if (!limiter.tryConsume(chave)) {
+    throw new AppError('Muitas requisições. Tente novamente em instantes.', 429);
+  }
+}
+
 export function rateLimitGuard(
   limiter: RateLimiter,
   keyOf: (request: FastifyRequest) => string,
 ): (request: FastifyRequest, reply: FastifyReply) => Promise<void> {
   return async (request) => {
-    if (!limiter.tryConsume(keyOf(request))) {
-      throw new AppError('Muitas requisições. Tente novamente em instantes.', 429);
-    }
+    exigirCota(limiter, keyOf(request));
   };
 }

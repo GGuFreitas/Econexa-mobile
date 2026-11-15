@@ -1,6 +1,8 @@
 import { FastifyReply, FastifyRequest } from 'fastify';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { AppError } from '@shared/errors.js';
+import { dbPool } from '@config/database.js';
 import { env } from '@config/env.js';
 
 export interface AuthenticatedUser {
@@ -15,31 +17,65 @@ declare module 'fastify' {
   }
 }
 
-function verificarToken(header: string): AuthenticatedUser | null {
-  const token = header.replace('Bearer ', '');
+const declaracoesDoAccessToken = z.object({
+  sub: z.number().int().positive(),
+  sv: z.number().int().nonnegative(),
+});
 
+export function contaBloqueada(): AppError {
+  return new AppError('Esta conta está bloqueada.', 403, 'CONTA_BLOQUEADA');
+}
+
+export function assinarAccessToken(usuarioId: number, sessaoVersao: number): string {
+  return jwt.sign({ sub: usuarioId, sv: sessaoVersao }, env.JWT_SECRET, {
+    algorithm: 'HS256',
+    expiresIn: env.ACCESS_TOKEN_TTL_SECONDS,
+  });
+}
+
+function lerAccessToken(token: string): { usuarioId: number; sessaoVersao: number } | null {
   try {
-    const decoded = jwt.verify(token, env.JWT_SECRET) as unknown as { sub: number; email: string; role: string };
-    return { id: decoded.sub, email: decoded.email, role: decoded.role };
+    const decodificado = jwt.verify(token, env.JWT_SECRET, { algorithms: ['HS256'] });
+    const declaracoes = declaracoesDoAccessToken.safeParse(decodificado);
+    if (!declaracoes.success) return null;
+    return { usuarioId: declaracoes.data.sub, sessaoVersao: declaracoes.data.sv };
   } catch {
     return null;
   }
 }
 
-export async function requireAuth(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
-  const header = request.headers.authorization;
-
+async function autenticar(header: string | undefined): Promise<AuthenticatedUser> {
   if (!header || !header.startsWith('Bearer ')) {
     throw new AppError('Token de autenticação ausente.', 401);
   }
 
-  const user = verificarToken(header);
-
-  if (!user) {
+  const declaracoes = lerAccessToken(header.slice('Bearer '.length));
+  if (!declaracoes) {
     throw new AppError('Token inválido ou expirado.', 401);
   }
 
-  request.user = user;
+  const result = await dbPool.query(
+    'SELECT id, email, role, bloqueado_em, sessao_versao FROM users WHERE id = $1',
+    [declaracoes.usuarioId],
+  );
+  const usuario = result.rows[0];
+
+  if (!usuario || usuario.sessao_versao !== declaracoes.sessaoVersao) {
+    throw new AppError('Token inválido ou expirado.', 401);
+  }
+  if (usuario.bloqueado_em) {
+    throw contaBloqueada();
+  }
+
+  return {
+    id: usuario.id,
+    email: usuario.email,
+    role: usuario.role,
+  };
+}
+
+export async function requireAuth(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
+  request.user = await autenticar(request.headers.authorization);
 }
 
 export async function optionalAuth(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
@@ -47,5 +83,9 @@ export async function optionalAuth(request: FastifyRequest, _reply: FastifyReply
 
   if (!header || !header.startsWith('Bearer ')) return;
 
-  request.user = verificarToken(header) ?? undefined;
+  try {
+    request.user = await autenticar(header);
+  } catch {
+    request.user = undefined;
+  }
 }
