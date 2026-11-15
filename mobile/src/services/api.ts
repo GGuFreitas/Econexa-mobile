@@ -14,6 +14,8 @@ const ROTAS_DE_AUTENTICACAO = new Set([
   '/auth/login',
   '/auth/register',
   '/auth/refresh',
+  '/auth/forgot-password',
+  '/auth/reset-password',
   '/auth/logout',
 ]);
 

@@ -34,6 +34,7 @@ export default function LoginScreen() {
       setFalha(mensagemDeErro(erro, 'Falha ao autenticar. Tente novamente.'));
     }
   };
+  const handleEsqueciSenha = () => navigation.navigate('EsqueciSenha');
   const handleCriarConta = () => navigation.navigate('Cadastro');
 
   return (
@@ -44,6 +45,9 @@ export default function LoginScreen() {
         </Text>
         <MensagemDeRetorno texto={mensagem} />
         <LoginForm onSubmit={handleLogin} />
+        <Button mode="text" onPress={handleEsqueciSenha}>
+          Esqueci minha senha
+        </Button>
         <View style={styles.rodape}>
           <Text style={[styles.convite, { color: theme.colors.onSurfaceVariant }]}>
             Ainda não tem conta?
