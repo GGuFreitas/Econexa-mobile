@@ -22,6 +22,11 @@ export interface Problema {
   distancia_m?: number;
 }
 
+export interface ProblemaListado extends Problema {
+  capa_url: string | null;
+  cont_imagens: number;
+}
+
 export interface CriarProblemaInput {
   usuarioId: number;
   titulo: string;

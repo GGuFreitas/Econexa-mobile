@@ -14,6 +14,7 @@ import type {
   ListarProblemasQuery,
   Problema,
   ProblemaDetalhe,
+  ProblemaListado,
   ProblemaStatus,
   ResultadoCriacaoProblema,
 } from './problemas.types.js';
@@ -149,9 +150,9 @@ export async function criarProblema(
   return { criado: true, problema };
 }
 
-export async function listarProblemas(query: ListarProblemasQuery): Promise<Problema[]> {
+export async function listarProblemas(query: ListarProblemasQuery): Promise<ProblemaListado[]> {
   const cacheKey = `${LIST_CACHE_PREFIXO}${JSON.stringify(query)}`;
-  const cached = await cache.get<Problema[]>(cacheKey);
+  const cached = await cache.get<ProblemaListado[]>(cacheKey);
   if (cached) return cached;
 
   const problemas = await sql.listarProblemas(query);
