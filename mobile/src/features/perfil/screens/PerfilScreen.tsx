@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import { useSelector } from 'react-redux';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNavigation, type NavigationProp } from '@react-navigation/native';
@@ -7,9 +6,10 @@ import { ErrorState, LoadingSpinner } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
-import { useAppDispatch } from '@store/hooks';
-import { logout } from '@store/authSlice';
-import type { User } from '@store/authSlice';
+import { useAppSelector } from '@store/hooks';
+import { encerrarSessao } from '@shared/sessao/sessao';
+import { AvisoEmailNaoConfirmado } from '@features/auth/components/AvisoEmailNaoConfirmado';
+import { useReleituraDoUsuario } from '@features/auth/hooks/useReleituraDoUsuario';
 import type { RootStackParamList } from '@navigation/AppNavigator';
 import { useAcoes, useApoiados, useRelatados, useResumo } from '../hooks/usePerfil';
 import { CapaPerfil } from '../components/CapaPerfil';
@@ -35,15 +35,15 @@ const ABAS: { chave: Aba; rotulo: string }[] = [
 
 export function PerfilScreen() {
   const theme = useAppTheme();
-  const dispatch = useAppDispatch();
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
-  const user = useSelector((state: { auth: { user: User | null } }) => state.auth.user);
+  const user = useAppSelector((state) => state.auth.user);
   const [aba, setAba] = useState<Aba>('relatados');
 
   const resumo = useResumo();
   const relatados = useRelatados();
   const apoiados = useApoiados();
   const acoes = useAcoes();
+  useReleituraDoUsuario(user?.email_verified === false);
 
   if (!user || resumo.isLoading) return <LoadingSpinner />;
   if (resumo.isError || !resumo.data) {
@@ -73,6 +73,8 @@ export function PerfilScreen() {
             { valor: resumo.data.acoes, rotulo: 'ações' },
           ]}
         />
+
+        <AvisoEmailNaoConfirmado usuario={user} />
 
         <FaixaAvisos
           avisos={resumo.data.avisos}
@@ -140,13 +142,27 @@ export function PerfilScreen() {
         <View
           style={[styles.menu, { backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow }]}
         >
+          {user.role === 'admin' && (
+            <Pressable
+              onPress={() => navigation.navigate('Moderacao')}
+              accessibilityRole="button"
+              style={styles.menuItem}
+            >
+              <MaterialCommunityIcons name="shield-account" size={20} color={theme.colors.onSurface} />
+              <Text style={[styles.menuTexto, { color: theme.colors.onSurface }]}>Moderação</Text>
+            </Pressable>
+          )}
+          <Pressable onPress={encerrarSessao} accessibilityRole="button" style={styles.menuItem}>
+            <MaterialCommunityIcons name="logout" size={20} color={theme.colors.onSurface} />
+            <Text style={[styles.menuTexto, { color: theme.colors.onSurface }]}>Sair da conta</Text>
+          </Pressable>
           <Pressable
-            onPress={() => dispatch(logout())}
+            onPress={() => navigation.navigate('ExcluirConta')}
             accessibilityRole="button"
             style={styles.menuItem}
           >
-            <MaterialCommunityIcons name="logout" size={20} color={theme.colors.onSurface} />
-            <Text style={[styles.menuTexto, { color: theme.colors.onSurface }]}>Sair da conta</Text>
+            <MaterialCommunityIcons name="account-remove" size={20} color={theme.colors.error} />
+            <Text style={[styles.menuTexto, { color: theme.colors.error }]}>Excluir conta</Text>
           </Pressable>
         </View>
       </ScrollView>

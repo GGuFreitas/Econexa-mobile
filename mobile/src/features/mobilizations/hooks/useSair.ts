@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { sairMobilizacao } from '../api/listar';
+import { sairMobilizacao } from '../api/sair';
 
 export function useSair() {
   const qc = useQueryClient();

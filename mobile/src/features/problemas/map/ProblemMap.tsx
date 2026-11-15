@@ -99,7 +99,12 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
         })}
       </MapView>
 
-      <View style={[styles.topBar, { backgroundColor: theme.colors.surface }]}>
+      <View
+        style={[
+          styles.topBar,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outline },
+        ]}
+      >
         <MapFilters ativo={filtroCausa} onSelecionar={setFiltroCausa} />
       </View>
 
@@ -145,7 +150,6 @@ const styles = StyleSheet.create({
     right: 0,
     paddingTop: spacing.two,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E6EC',
   },
   fab: {
     position: 'absolute',

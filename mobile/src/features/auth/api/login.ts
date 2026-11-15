@@ -1,13 +1,9 @@
 import { api } from '@services/api';
-import type { ApiUser } from '../helpers/mapUser';
+import type { SessaoDaApi } from '@shared/sessao/contrato';
 
-export type LoginResponse = {
-  message: string;
-  token: string;
-  user: ApiUser;
-};
+export type LoginInput = { email: string; password: string };
 
-type LoginInput = { email: string; password: string };
+export type LoginResponse = SessaoDaApi & { message: string };
 
 export async function login(payload: LoginInput): Promise<LoginResponse> {
   const response = await api.post<LoginResponse>('/auth/login', payload);

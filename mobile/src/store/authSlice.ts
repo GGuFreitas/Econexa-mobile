@@ -6,33 +6,70 @@ export type User = {
   email: string;
   role: 'citizen' | 'specialist' | 'admin';
   vote_weight: number;
+  email_verified: boolean;
+  has_password: boolean;
+};
+
+export type SituacaoDaSessao = 'restaurando' | 'autenticado' | 'anonimo' | 'erroDeRede';
+
+export type MotivoDoEncerramento = 'CONTA_BLOQUEADA' | 'SESSAO_INVALIDA' | 'SESSAO_COMPROMETIDA';
+
+export type Credenciais = {
+  user: User;
+  accessToken: string;
+  refreshToken: string;
 };
 
 export type AuthState = {
   user: User | null;
-  token: string | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  situacao: SituacaoDaSessao;
+  motivoDoEncerramento: MotivoDoEncerramento | null;
 };
 
 const initialState: AuthState = {
   user: null,
-  token: null,
+  accessToken: null,
+  refreshToken: null,
+  situacao: 'restaurando',
+  motivoDoEncerramento: null,
 };
 
 export const authSlice = createSlice({
   name: 'auth',
   initialState,
   reducers: {
-    setCredentials(state, action: PayloadAction<{ user: User; token: string }>) {
+    setCredentials(state, action: PayloadAction<Credenciais>) {
       state.user = action.payload.user;
-      state.token = action.payload.token;
+      state.accessToken = action.payload.accessToken;
+      state.refreshToken = action.payload.refreshToken;
+      state.situacao = 'autenticado';
+      state.motivoDoEncerramento = null;
     },
-    logout(state) {
+    setUser(state, action: PayloadAction<User>) {
+      state.user = action.payload;
+    },
+    restauracaoIniciada(state) {
+      state.situacao = 'restaurando';
+    },
+    restauracaoFalhou(state, action: PayloadAction<{ refreshToken: string; user: User | null }>) {
+      state.user = action.payload.user;
+      state.accessToken = null;
+      state.refreshToken = action.payload.refreshToken;
+      state.situacao = 'erroDeRede';
+    },
+    logout(state, action: PayloadAction<MotivoDoEncerramento | undefined>) {
       state.user = null;
-      state.token = null;
+      state.accessToken = null;
+      state.refreshToken = null;
+      state.situacao = 'anonimo';
+      state.motivoDoEncerramento = action.payload ?? null;
     },
   },
 });
 
-export const { setCredentials, logout } = authSlice.actions;
+export const { setCredentials, setUser, restauracaoIniciada, restauracaoFalhou, logout } =
+  authSlice.actions;
 
 export default authSlice.reducer;

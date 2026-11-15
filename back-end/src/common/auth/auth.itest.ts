@@ -3,7 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { dbPool } from '@config/database.js';
 import { encerrarBanco, limparBanco } from '../../tests/integracao/fixtures.js';
 import { criarServidor } from '../../tests/integracao/servidor.js';
-import { registerUser } from './auth.handler.js';
+import { cadastrarUsuario } from './auth.handler.js';
 
 const LIMITE_CADASTRO = 5;
 const LIMITE_LOGIN = 10;
@@ -93,7 +93,7 @@ describe('cadastro e login', () => {
   });
 
   it('o login passa a recusar depois do limite por origem', async () => {
-    await registerUser({
+    await cadastrarUsuario({
       nome: 'Clara Alvo',
       email: 'clara.alvo@exemplo.invalid',
       password: 'senha123',

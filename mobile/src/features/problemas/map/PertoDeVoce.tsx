@@ -16,7 +16,7 @@ export function PertoDeVoce({ total, raioKm }: PertoDeVoceProps) {
     <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
       <MaterialCommunityIcons name="map-marker-radius" size={20} color={theme.colors.primary} />
       <Text style={[styles.title, { color: theme.colors.onSurface }]}>Perto de você</Text>
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
       <Text style={[styles.metric, { color: theme.colors.onSurface }]}>{total}</Text>
       <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
         em {raioKm}km
@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   title: { fontSize: typography.fontSize.sm, fontWeight: '700' },
-  divider: { width: 1, height: 20, backgroundColor: '#E2E6EC' },
+  divider: { width: 1, height: 20 },
   metric: { fontSize: typography.fontSize.lg, fontWeight: '800' },
   metricLabel: { fontSize: typography.fontSize.xs },
 });
