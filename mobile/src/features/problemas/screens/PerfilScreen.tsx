@@ -1,4 +1,6 @@
 import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Header, ScreenWrapper, Card, Button, LoadingSpinner } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
@@ -9,6 +11,7 @@ import { AvisoEmailNaoConfirmado } from '@features/auth/components/AvisoEmailNao
 import { useReleituraDoUsuario } from '@features/auth/hooks/useReleituraDoUsuario';
 import { useEstatisticas } from '../hooks';
 import { useLocalizacao } from '@shared/hooks/useLocalizacao';
+import type { RootStackParamList } from '@navigation/AppNavigator';
 
 const ROLE_LABEL: Record<string, string> = {
   citizen: 'Cidadão',
@@ -20,6 +23,7 @@ const RAIO_PERFIL_METROS = 8000;
 
 export function PerfilScreen() {
   const theme = useAppTheme();
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const user = useAppSelector((state) => state.auth.user);
   const { coordenada } = useLocalizacao();
   const { data: estatisticas } = useEstatisticas({
@@ -33,6 +37,7 @@ export function PerfilScreen() {
   if (!user) return <LoadingSpinner />;
 
   const handleSair = () => encerrarSessao();
+  const handleExcluirConta = () => navigation.navigate('ExcluirConta');
 
   return (
     <ScreenWrapper>
@@ -70,6 +75,9 @@ export function PerfilScreen() {
 
         <Button mode="outlined" icon="logout" onPress={handleSair}>
           Sair da conta
+        </Button>
+        <Button mode="text" textColor={theme.colors.error} onPress={handleExcluirConta}>
+          Excluir conta
         </Button>
       </ScrollView>
     </ScreenWrapper>
