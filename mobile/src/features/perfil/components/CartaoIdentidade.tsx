@@ -1,9 +1,11 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
 import { comAlfa, iniciais } from '../utils/perfil';
+
+const DESFOCA = Platform.OS === 'ios';
 
 interface Numero {
   valor: number;
@@ -26,13 +28,18 @@ export function CartaoIdentidade({ nome, subtitulo, numeros }: CartaoIdentidadeP
         { borderColor: comAlfa(theme.colors.surface, 0.6), shadowColor: theme.colors.shadow },
       ]}
     >
-      <BlurView
-        intensity={40}
-        tint={theme.dark ? 'dark' : 'light'}
-        style={StyleSheet.absoluteFill}
-      />
+      {DESFOCA && (
+        <BlurView
+          intensity={40}
+          tint={theme.dark ? 'dark' : 'light'}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       <View
-        style={[StyleSheet.absoluteFill, { backgroundColor: comAlfa(theme.colors.surface, 0.74) }]}
+        style={[
+          StyleSheet.absoluteFill,
+          { backgroundColor: comAlfa(theme.colors.surface, DESFOCA ? 0.74 : 1) },
+        ]}
       />
 
       <View style={styles.identidade}>
