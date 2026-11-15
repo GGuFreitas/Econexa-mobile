@@ -39,7 +39,6 @@ function linhaUsuario(extra: Record<string, unknown> = {}) {
     email: 'ana@exemplo.invalid',
     role: 'citizen',
     peso_voto: 1,
-    email_verificado: true,
     bloqueado_em: null,
     sessao_versao: 2,
     ...extra,
@@ -74,7 +73,6 @@ describe('emitirSessao', () => {
       email: 'ana@exemplo.invalid',
       role: 'citizen',
       vote_weight: 1,
-      email_verified: true,
     });
   });
 });

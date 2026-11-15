@@ -6,7 +6,6 @@ export type PublicUser = {
   email: string;
   role: UserRole;
   vote_weight: number;
-  email_verified: boolean;
 };
 
 export type Sessao = {
@@ -28,15 +27,12 @@ export type LoginInput = {
   password: string;
 };
 
-export type ResultadoDaConfirmacao = 'confirmado' | 'ja_confirmado' | 'invalido';
-
 export interface UsuarioRow {
   id: number;
   nome: string;
   email: string;
   role: string;
   peso_voto: number;
-  email_verificado: boolean;
   bloqueado_em: Date | null;
   sessao_versao: number;
 }
@@ -49,7 +45,6 @@ export interface NovoUsuario {
   nome: string;
   email: string;
   senhaHash: string;
-  emailVerificado: boolean;
 }
 
 export interface RefreshTokenEmitido {
