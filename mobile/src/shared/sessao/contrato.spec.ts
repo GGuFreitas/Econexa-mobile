@@ -12,17 +12,19 @@ const sessao: SessaoDaApi = {
     email: 'b@e.com',
     role: 'specialist',
     vote_weight: 3,
+    email_verified: false,
   },
 };
 
 describe('contrato da sessão', () => {
-  it('mapUser converte id numérico e mantém os campos', () => {
+  it('mapUser converte id numérico e mantém os campos, inclusive os de verificação', () => {
     expect(mapUser(sessao.user)).toEqual({
       id: '7',
       name: 'Bia',
       email: 'b@e.com',
       role: 'specialist',
       vote_weight: 3,
+      email_verified: false,
     });
   });
 

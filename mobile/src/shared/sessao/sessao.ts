@@ -6,12 +6,13 @@ import {
   restauracaoFalhou,
   restauracaoIniciada,
   setCredentials,
+  setUser,
   type Credenciais,
   type MotivoDoEncerramento,
 } from '@store/authSlice';
 import { queryClient } from '@shared/hooks/useAppQueryClient';
 import { armazenamentoDaSessao } from './armazenamento';
-import { credenciaisDaSessao, type SessaoDaApi } from './contrato';
+import { credenciaisDaSessao, mapUser, type ApiUser, type SessaoDaApi } from './contrato';
 
 let geracao = 0;
 let renovacaoEmCurso: Promise<string> | null = null;
@@ -103,6 +104,14 @@ async function executarRestauracao(): Promise<void> {
     if (ehRecusaDaSessao(erro)) return;
     store.dispatch(restauracaoFalhou({ refreshToken: salva.refreshToken, user: salva.usuario }));
   }
+}
+
+export async function atualizarUsuario(usuarioDaApi: ApiUser): Promise<void> {
+  const usuario = mapUser(usuarioDaApi);
+  const { situacao, user } = store.getState().auth;
+  if (situacao !== 'autenticado' || user?.id !== usuario.id) return;
+  store.dispatch(setUser(usuario));
+  await armazenamentoDaSessao.gravarUsuario(usuario).catch(() => undefined);
 }
 
 function ehRecusaDaSessao(erro: unknown): boolean {

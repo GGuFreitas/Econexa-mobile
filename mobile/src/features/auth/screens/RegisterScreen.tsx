@@ -42,7 +42,7 @@ export default function RegisterScreen() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={[styles.convite, { color: theme.colors.onSurfaceVariant }]}>
           Sua conta nasce como cidadão. É ela que permite relatar problemas, apoiar e organizar
-          mobilizações.
+          mobilizações. Depois do cadastro, enviamos um link para confirmar seu e-mail.
         </Text>
         <MensagemDeRetorno texto={falha} />
         <RegisterForm onSubmit={handleRegister} />

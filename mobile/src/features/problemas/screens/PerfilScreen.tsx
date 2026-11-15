@@ -5,6 +5,8 @@ import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
 import { useAppSelector } from '@store/hooks';
 import { encerrarSessao } from '@shared/sessao/sessao';
+import { AvisoEmailNaoConfirmado } from '@features/auth/components/AvisoEmailNaoConfirmado';
+import { useReleituraDoUsuario } from '@features/auth/hooks/useReleituraDoUsuario';
 import { useEstatisticas } from '../hooks';
 import { useLocalizacao } from '@shared/hooks/useLocalizacao';
 
@@ -26,6 +28,7 @@ export function PerfilScreen() {
     raio: RAIO_PERFIL_METROS,
     status: 'ativo',
   });
+  useReleituraDoUsuario(user?.email_verified === false);
 
   if (!user) return <LoadingSpinner />;
 
@@ -42,6 +45,8 @@ export function PerfilScreen() {
             {ROLE_LABEL[user.role] ?? user.role}
           </Text>
         </Card>
+
+        <AvisoEmailNaoConfirmado usuario={user} />
 
         <Card style={styles.card}>
           <Text style={[styles.section, { color: theme.colors.onSurfaceVariant }]}>

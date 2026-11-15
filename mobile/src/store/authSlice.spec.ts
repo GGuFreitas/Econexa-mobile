@@ -4,6 +4,7 @@ import reducer, {
   restauracaoFalhou,
   restauracaoIniciada,
   setCredentials,
+  setUser,
   type AuthState,
   type User,
 } from './authSlice';
@@ -14,6 +15,7 @@ const ana: User = {
   email: 'ana@email.com',
   role: 'citizen',
   vote_weight: 1,
+  email_verified: false,
 };
 
 const autenticado: AuthState = {
@@ -54,6 +56,13 @@ describe('authSlice', () => {
     expect(state.motivoDoEncerramento).toBeNull();
   });
 
+  it('setUser troca só o usuário', () => {
+    const state = reducer(autenticado, setUser({ ...ana, email_verified: true }));
+
+    expect(state.user?.email_verified).toBe(true);
+    expect(state.accessToken).toBe('acesso');
+    expect(state.refreshToken).toBe('refresh');
+  });
 
   it('a falha na restauração mantém o refresh token para tentar de novo', () => {
     const restaurando = reducer(undefined, restauracaoIniciada());

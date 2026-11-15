@@ -87,6 +87,7 @@ function sessaoDaApi(accessToken: string, refreshToken: string): SessaoDaApi {
       email: 'ana@x.com',
       role: 'citizen',
       vote_weight: 1,
+      email_verified: false,
     },
   };
 }

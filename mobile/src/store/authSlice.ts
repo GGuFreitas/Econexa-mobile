@@ -6,6 +6,7 @@ export type User = {
   email: string;
   role: 'citizen' | 'specialist' | 'admin';
   vote_weight: number;
+  email_verified: boolean;
 };
 
 export type SituacaoDaSessao = 'restaurando' | 'autenticado' | 'anonimo' | 'erroDeRede';
@@ -45,6 +46,9 @@ export const authSlice = createSlice({
       state.situacao = 'autenticado';
       state.motivoDoEncerramento = null;
     },
+    setUser(state, action: PayloadAction<User>) {
+      state.user = action.payload;
+    },
     restauracaoIniciada(state) {
       state.situacao = 'restaurando';
     },
@@ -64,7 +68,7 @@ export const authSlice = createSlice({
   },
 });
 
-export const { setCredentials, restauracaoIniciada, restauracaoFalhou, logout } =
+export const { setCredentials, setUser, restauracaoIniciada, restauracaoFalhou, logout } =
   authSlice.actions;
 
 export default authSlice.reducer;

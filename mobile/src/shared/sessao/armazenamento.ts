@@ -12,6 +12,7 @@ export type SessaoSalva = { refreshToken: string; usuario: User | null };
 export type ArmazenamentoDaSessao = {
   ler(): Promise<SessaoSalva | null>;
   gravar(sessao: { refreshToken: string; usuario: User }): Promise<void>;
+  gravarUsuario(usuario: User): Promise<void>;
   limpar(): Promise<void>;
 };
 
@@ -83,6 +84,8 @@ export function criarArmazenamentoDaSessao(
         await cofre.gravar(CHAVES_DA_SESSAO.refreshToken, refreshToken);
         await cofre.gravar(CHAVES_DA_SESSAO.usuario, JSON.stringify(usuario));
       }),
+    gravarUsuario: (usuario) =>
+      emOrdem(() => cofre.gravar(CHAVES_DA_SESSAO.usuario, JSON.stringify(usuario))),
     limpar: () => emOrdem(apagarTudo),
   };
 }
