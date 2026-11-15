@@ -7,35 +7,47 @@ import { causaList } from './markerConfig';
 export function MapLegend() {
   const theme = useAppTheme();
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={[
-        styles.container,
-        { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline },
+    <View
+      style={[
+        styles.rodape,
+        { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.outline },
       ]}
     >
-      {causaList.map((causa) => (
-        <View key={causa.id} style={styles.item}>
-          <MaterialCommunityIcons
-            name={causa.icone as keyof typeof MaterialCommunityIcons.glyphMap}
-            size={16}
-            color={causa.cor}
-          />
-          <Text style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>{causa.nome}</Text>
-        </View>
-      ))}
-    </ScrollView>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.lista}
+        contentContainerStyle={styles.container}
+      >
+        {causaList.map((causa) => (
+          <View key={causa.id} style={styles.item}>
+            <MaterialCommunityIcons
+              name={causa.icone as keyof typeof MaterialCommunityIcons.glyphMap}
+              size={16}
+              color={causa.cor}
+            />
+            <Text style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>{causa.nome}</Text>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  rodape: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderTopWidth: 1,
+  },
+  lista: { flexGrow: 0 },
   container: {
-    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.three,
     paddingVertical: spacing.two,
     paddingHorizontal: spacing.three,
-    borderTopWidth: 1,
   },
   item: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   label: { fontSize: 12 },

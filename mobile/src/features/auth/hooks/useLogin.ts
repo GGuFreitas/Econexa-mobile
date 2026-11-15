@@ -1,17 +1,11 @@
 import { useMutation } from '@tanstack/react-query';
-import { login, type LoginResponse } from '../api/login';
-import { mapUser } from '../helpers/mapUser';
-import { useAppDispatch } from '@store/hooks';
-import { setCredentials } from '@store/authSlice';
-
-type LoginInput = { email: string; password: string };
+import { iniciarSessao } from '@shared/sessao/sessao';
+import { login, type LoginInput } from '../api/login';
+import { buildLoginPayload } from '../helpers/buildLoginPayload';
 
 export function useLogin() {
-  const dispatch = useAppDispatch();
   return useMutation({
-    mutationFn: (payload: LoginInput) => login(payload),
-    onSuccess: (data: LoginResponse) => {
-      dispatch(setCredentials({ user: mapUser(data.user), token: data.token }));
-    },
+    mutationFn: (payload: LoginInput) => login(buildLoginPayload(payload.email, payload.password)),
+    onSuccess: (resposta) => iniciarSessao(resposta),
   });
 }

@@ -16,7 +16,13 @@ export function MapFilters({ ativo, onSelecionar }: MapFiltersProps) {
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={{ gap: spacing.two, paddingHorizontal: spacing.three, paddingVertical: spacing.two }}
+      style={{ flexGrow: 0 }}
+      contentContainerStyle={{
+        alignItems: 'center',
+        gap: spacing.two,
+        paddingHorizontal: spacing.three,
+        paddingVertical: spacing.two,
+      }}
     >
       <Chip selected={ativo === null} onPress={() => onSelecionar(null)}>
         Todos
