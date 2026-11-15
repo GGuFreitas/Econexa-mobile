@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { apoiarProblema, desapoiarProblema } from '../api/apoios';
+import { apoiarProblema } from '../api/apoiar';
+import { desapoiarProblema } from '../api/desapoiar';
 import type { Problema } from '../types';
 
 export function useApoio(problemaId: number) {

@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { adicionarResultadoMobilizacao } from '../api/listar';
+import { adicionarResultadoMobilizacao } from '../api/adicionarResultado';
 
 export function useAdicionarResultado() {
   const qc = useQueryClient();
