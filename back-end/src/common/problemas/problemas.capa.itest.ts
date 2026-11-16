@@ -1,4 +1,5 @@
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import sharp from 'sharp';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { dbPool } from '@config/database.js';
 import { enviarObjeto } from '@shared/storage.js';
 import {
@@ -15,7 +16,7 @@ vi.mock('@shared/storage.js', () => ({
   removerObjeto: vi.fn(),
 }));
 
-const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(64)]);
+let jpeg: Buffer;
 
 async function inserirImagem(
   tipoEntidade: string,
@@ -33,6 +34,14 @@ async function inserirImagem(
 
 describe('problemas: capa na listagem', () => {
   let autor: number;
+
+  beforeAll(async () => {
+    jpeg = await sharp({
+      create: { width: 64, height: 48, channels: 3, background: '#3a7d44' },
+    })
+      .jpeg()
+      .toBuffer();
+  });
 
   beforeEach(async () => {
     await limparBanco();
