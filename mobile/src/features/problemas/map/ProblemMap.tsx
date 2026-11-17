@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { View, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import MapView, { type Region } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FAB, LoadingSpinner, ErrorState, EmptyState } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
@@ -24,6 +25,8 @@ interface ProblemMapProps {
 
 export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapProps) {
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const abaixoDoTopo = insets.top + 64;
   const { coordenada, carregando, erro } = useLocalizacao();
   const [filtroCausa, setFiltroCausa] = useState<number | null>(null);
   const [regiao, setRegiao] = useState<Region | null>(null);
@@ -54,7 +57,6 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
   const { apoiar } = useApoio(selecionado?.id ?? 0);
 
   if (carregando || (isLoading && !problemas)) return <LoadingSpinner />;
-  if (erro) return <ErrorState message={erro} />;
   if (isError) return <ErrorState message="Não foi possível carregar o mapa." />;
 
   const regiaoInicial: Region =
@@ -99,17 +101,23 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
         })}
       </MapView>
 
-      <View
-        style={[
-          styles.topBar,
-          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outline },
-        ]}
-      >
+      <View style={[styles.topBar, { backgroundColor: theme.colors.surface, paddingTop: insets.top + spacing.one }]}>
         <MapFilters ativo={filtroCausa} onSelecionar={setFiltroCausa} />
       </View>
 
-      {coordenada && estatisticas && (
-        <PertoDeVoce total={estatisticas.total} raioKm={RAIO_PERTO_METROS / 1000} />
+      {!erro && coordenada && estatisticas && (
+        <PertoDeVoce total={estatisticas.total} raioKm={RAIO_PERTO_METROS / 1000} top={abaixoDoTopo} />
+      )}
+
+      {erro && (
+        <View
+          accessibilityRole="alert"
+          style={[styles.aviso, { top: abaixoDoTopo, backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}
+        >
+          <Text style={[styles.avisoTexto, { color: theme.colors.onSurfaceVariant }]}>
+            {erro} Mostrando o centro de São Paulo.
+          </Text>
+        </View>
       )}
 
       <MapLegend />
@@ -151,6 +159,16 @@ const styles = StyleSheet.create({
     paddingTop: spacing.two,
     borderBottomWidth: 1,
   },
+  aviso: {
+    position: 'absolute',
+    left: spacing.three,
+    right: spacing.three,
+    paddingVertical: spacing.one,
+    paddingHorizontal: spacing.two,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  avisoTexto: { fontSize: 13 },
   fab: {
     position: 'absolute',
     right: spacing.four,

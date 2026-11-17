@@ -7,13 +7,14 @@ import { typography } from '@shared/theme/typography';
 interface PertoDeVoceProps {
   total: number;
   raioKm: number;
+  top?: number;
 }
 
-export function PertoDeVoce({ total, raioKm }: PertoDeVoceProps) {
+export function PertoDeVoce({ total, raioKm, top = 64 }: PertoDeVoceProps) {
   const theme = useAppTheme();
 
   return (
-    <View style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
+    <View style={[styles.card, { top, backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
       <MaterialCommunityIcons name="map-marker-radius" size={20} color={theme.colors.primary} />
       <Text style={[styles.title, { color: theme.colors.onSurface }]}>Perto de você</Text>
       <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
@@ -28,7 +29,6 @@ export function PertoDeVoce({ total, raioKm }: PertoDeVoceProps) {
 const styles = StyleSheet.create({
   card: {
     position: 'absolute',
-    top: 64,
     left: spacing.three,
     flexDirection: 'row',
     alignItems: 'center',
