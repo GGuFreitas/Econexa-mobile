@@ -8,24 +8,25 @@ import { getCausa } from '../map/markerConfig';
 import { useApoio } from '../hooks/useApoio';
 import { META_APOIOS, progressoMeta } from '../utils/meta';
 import { formatarDistancia } from '../utils/proximidade';
-import type { ApoioResultado, ProblemaListado } from '../types';
+import { useAppTheme } from '@shared/hooks/useAppTheme';
+import type { ProblemaListado } from '../types';
 
 type Icone = keyof typeof MaterialCommunityIcons.glyphMap;
 
 interface ProblemCardProps {
   problema: ProblemaListado;
+  apoiado: boolean;
   onPress: (id: number) => void;
 }
 
 const BRANCO = '#FFFFFF';
 const BRANCO_SUAVE = 'rgba(255, 255, 255, 0.88)';
-const ESCURO = '#111111';
 
-export function ProblemCard({ problema, onPress }: ProblemCardProps) {
+export function ProblemCard({ problema, apoiado, onPress }: ProblemCardProps) {
+  const theme = useAppTheme();
   const causa = getCausa(problema.causa_id);
   const icone = causa.icone as Icone;
   const { apoiar, desapoiar } = useApoio(problema.id);
-  const [apoio, setApoio] = useState<{ apoiado: boolean; total: number } | null>(null);
   const [semMovimento, setSemMovimento] = useState(false);
   const escala = useRef(new Animated.Value(1)).current;
 
@@ -35,8 +36,7 @@ export function ProblemCard({ problema, onPress }: ProblemCardProps) {
       .catch(() => undefined);
   }, []);
 
-  const apoiado = apoio?.apoiado ?? false;
-  const total = apoio?.total ?? problema.cont_apoios;
+  const total = problema.cont_apoios;
   const enviando = apoiar.isPending || desapoiar.isPending;
   const distancia =
     problema.distancia_m != null ? formatarDistancia(Number(problema.distancia_m)) : null;
@@ -52,13 +52,12 @@ export function ProblemCard({ problema, onPress }: ProblemCardProps) {
   };
 
   const alternarApoio = () => {
-    const mutacao = apoiado ? desapoiar : apoiar;
-    mutacao.mutate(undefined, {
-      onSuccess: (resultado: ApoioResultado) => {
-        setApoio({ apoiado: resultado.apoiado, total: resultado.cont_apoios });
-        if (resultado.apoiado) pulsar();
-      },
-    });
+    if (apoiado) {
+      desapoiar.mutate();
+      return;
+    }
+    pulsar();
+    apoiar.mutate();
   };
 
   return (
@@ -133,15 +132,28 @@ export function ProblemCard({ problema, onPress }: ProblemCardProps) {
               disabled={enviando}
               hitSlop={4}
               accessibilityRole="button"
-              accessibilityLabel={apoiado ? 'Retirar apoio' : 'Apoiar'}
+              accessibilityLabel={apoiado ? 'Você apoia. Toque para retirar o apoio' : 'Apoiar'}
               accessibilityState={{ selected: apoiado, busy: enviando }}
-              style={[styles.botao, apoiado && styles.botaoAtivo]}
+              style={[
+                styles.botao,
+                apoiado
+                  ? styles.botaoAtivo
+                  : { backgroundColor: theme.colors.secondary, borderColor: theme.colors.secondary },
+              ]}
             >
               <MaterialCommunityIcons
-                name={apoiado ? 'thumb-up' : 'thumb-up-outline'}
-                size={22}
-                color={apoiado ? ESCURO : BRANCO}
+                name={apoiado ? 'check-circle' : 'thumb-up'}
+                size={18}
+                color={apoiado ? theme.colors.primary : theme.colors.onSecondary}
               />
+              <Text
+                style={[
+                  styles.botaoTexto,
+                  { color: apoiado ? theme.colors.primary : theme.colors.onSecondary },
+                ]}
+              >
+                {apoiado ? 'Apoiando' : 'Apoiar'}
+              </Text>
             </Pressable>
           </Animated.View>
         </View>
@@ -216,14 +228,15 @@ const styles = StyleSheet.create({
   },
   barraCheia: { height: '100%', borderRadius: 2, backgroundColor: BRANCO },
   botao: {
-    width: 44,
-    height: 44,
+    minHeight: 44,
+    paddingHorizontal: spacing.three,
     borderRadius: 22,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 6,
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
   },
   botaoAtivo: { backgroundColor: BRANCO, borderColor: BRANCO },
+  botaoTexto: { fontSize: typography.fontSize.sm + 1, fontWeight: '700' },
 });

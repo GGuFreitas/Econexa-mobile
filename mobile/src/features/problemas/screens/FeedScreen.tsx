@@ -10,11 +10,14 @@ import { MapFilters } from '../map/MapFilters';
 import { ProblemCard } from '../components/ProblemCard';
 import { AvisoPerto } from '../components/AvisoPerto';
 import { RAIO_PERTO_METROS } from '../utils/proximidade';
+import { useMeusApoios } from '@features/perfil/hooks/usePerfil';
 
 export function FeedScreen() {
   const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const [causa, setCausa] = useState<number | null>(null);
   const { coordenada, carregando, erro } = useLocalizacao();
+  const { data: meusApoios } = useMeusApoios();
+  const apoiados = new Set(meusApoios ?? []);
 
   const perto =
     !carregando && !erro && coordenada
@@ -58,6 +61,7 @@ export function FeedScreen() {
         renderItem={({ item }) => (
           <ProblemCard
             problema={item}
+            apoiado={apoiados.has(item.id)}
             onPress={(id) => navigation.navigate('DetalheProblema', { id })}
           />
         )}
