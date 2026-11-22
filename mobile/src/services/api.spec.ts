@@ -1,4 +1,3 @@
-/* global setTimeout */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios';
 
