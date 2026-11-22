@@ -120,13 +120,17 @@ export function DetalheProblemaScreen() {
 
           <View style={styles.actions}>
             <Button
-              mode="contained"
-              icon="thumb-up"
+              mode={problema.apoiado ? 'outlined' : 'contained'}
+              icon={problema.apoiado ? 'check-circle' : 'thumb-up'}
               loading={apoiar.isPending || desapoiar.isPending}
-              onPress={() => apoiar.mutate()}
+              disabled={apoiar.isPending || desapoiar.isPending}
+              onPress={() => (problema.apoiado ? desapoiar.mutate() : apoiar.mutate())}
+              buttonColor={problema.apoiado ? undefined : theme.colors.secondary}
+              textColor={problema.apoiado ? theme.colors.primary : theme.colors.onSecondary}
+              accessibilityHint={problema.apoiado ? 'Toque para retirar o apoio' : undefined}
               style={{ flex: 1 }}
             >
-              Apoiar
+              {problema.apoiado ? 'Apoiando' : 'Apoiar'}
             </Button>
             <Button mode="outlined" icon="flag" onPress={() => setDenunciaAberta(true)}>
               Denunciar
@@ -208,7 +212,7 @@ const styles = StyleSheet.create({
   },
   titulo: { fontSize: typography.fontSize.xl, fontWeight: '700' },
   local: { fontSize: typography.fontSize.sm },
-  card: { gap: spacing.two },
+  card: { gap: spacing.two, padding: spacing.three },
   statusLabel: { fontSize: typography.fontSize.sm },
   status: { fontSize: typography.fontSize.lg, fontWeight: '700' },
   apoioRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
