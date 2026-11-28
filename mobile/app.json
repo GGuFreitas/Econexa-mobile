@@ -1,10 +1,7 @@
 {
   "expo": {
-    "name": "Econexa Mobile",
-    "slug": "econexa-mobile",
     "version": "1.0.0",
     "sdkVersion": "57.0.0",
-    "scheme": "mutira",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "platforms": [
@@ -19,17 +16,38 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "br.com.mutira",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#ffffff"
-      }
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA"
+      ]
     },
     "plugins": [
       "expo-font",
       "expo-status-bar",
       "expo-secure-store",
-      "@react-native-google-signin/google-signin"
-    ]
+      "@react-native-google-signin/google-signin",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Usamos sua localização para mostrar os problemas perto de você e marcar onde um novo problema está."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Precisamos acessar suas fotos para você anexar imagens a um problema ou mobilização.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
+    ],
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "userInterfaceStyle": "automatic"
   }
 }
