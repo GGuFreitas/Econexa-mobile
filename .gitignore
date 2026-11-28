@@ -2,3 +2,7 @@
 node_modules
 .idea/
 .env.prod
+
+# Ferramentas locais (Claude Code e artefatos do Impeccable)
+.claude/
+.impeccable/

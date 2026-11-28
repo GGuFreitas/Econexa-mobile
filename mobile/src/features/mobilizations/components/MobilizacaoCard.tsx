@@ -1,10 +1,10 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Card, Chip } from '@shared/ui';
+import { Card, PilulaStatus } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
-import { typography } from '@shared/theme/typography';
-import { statusLabels, statusColors } from '../utils/statusTransitions';
+import { texto } from '@shared/theme/typography';
+import { statusLabels, statusPapeis, statusIcones } from '../utils/statusTransitions';
 import type { Mobilizacao } from '../types';
 
 interface MobilizacaoCardProps {
@@ -15,31 +15,32 @@ interface MobilizacaoCardProps {
 export function MobilizacaoCard({ mobilizacao, onPress }: MobilizacaoCardProps) {
   const theme = useAppTheme();
   const label = statusLabels[mobilizacao.status];
-  const color = statusColors[mobilizacao.status];
+  const participantes =
+    mobilizacao.cont_participantes === 1 ? '1 participante' : `${mobilizacao.cont_participantes} participantes`;
+  const quando = mobilizacao.data_inicio ? formatDate(mobilizacao.data_inicio) : null;
 
   return (
-    <Card onPress={() => onPress(mobilizacao.id)} style={styles.card}>
-      <View style={styles.header}>
-        <View style={[styles.statusDot, { backgroundColor: color }]} />
-        <Text style={[styles.titulo, { color: theme.colors.onSurface }]} numberOfLines={1}>
+    <Card
+      onPress={() => onPress(mobilizacao.id)}
+      accessibilityLabel={[mobilizacao.titulo, label, quando, participantes].filter(Boolean).join('. ')}
+      style={[styles.card, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}
+      mode="outlined"
+    >
+      <View style={styles.conteudo}>
+        <PilulaStatus rotulo={label} papel={statusPapeis[mobilizacao.status]} icone={statusIcones[mobilizacao.status]} />
+        <Text style={[styles.titulo, { color: theme.colors.onSurface }]} numberOfLines={2}>
           {mobilizacao.titulo}
         </Text>
-      </View>
-      <View style={styles.info}>
-        {mobilizacao.data_inicio && (
-          <Text style={[styles.infoText, { color: theme.colors.onSurfaceVariant }]}>
-            {formatDate(mobilizacao.data_inicio)}
-          </Text>
-        )}
-        <View style={styles.footer}>
-          <Chip compact mode="outlined" style={{ backgroundColor: color, borderColor: color }}>
-            <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{label}</Text>
-          </Chip>
-          <View style={styles.participantes}>
-            <MaterialCommunityIcons name="account-group" size={14} color={theme.colors.primary} />
-            <Text style={[styles.participantesText, { color: theme.colors.onSurfaceVariant }]}>
-              {mobilizacao.cont_participantes}
-            </Text>
+        <View style={styles.linha}>
+          {quando && (
+            <View style={styles.item}>
+              <MaterialCommunityIcons name="calendar-clock" size={16} color={theme.colors.onSurfaceVariant} />
+              <Text style={[styles.infoText, { color: theme.colors.onSurfaceVariant }]}>{quando}</Text>
+            </View>
+          )}
+          <View style={styles.item}>
+            <MaterialCommunityIcons name="account-group" size={16} color={theme.colors.onSurfaceVariant} />
+            <Text style={[styles.infoText, { color: theme.colors.onSurfaceVariant }]}>{participantes}</Text>
           </View>
         </View>
       </View>
@@ -53,13 +54,10 @@ function formatDate(iso: string): string {
 }
 
 const styles = StyleSheet.create({
-  card: { padding: spacing.three, gap: spacing.two },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  statusDot: { width: 10, height: 10, borderRadius: 5 },
-  titulo: { fontSize: typography.fontSize.base, fontWeight: '700', flex: 1 },
-  info: { gap: spacing.one },
-  infoText: { fontSize: typography.fontSize.sm },
-  footer: { flexDirection: 'row', alignItems: 'center', gap: spacing.three, marginTop: spacing.one },
-  participantes: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  participantesText: { fontSize: typography.fontSize.xs },
+  card: { borderRadius: 16 },
+  conteudo: { padding: spacing.three, gap: spacing.one },
+  titulo: { ...texto.corpoForte, fontSize: 16 },
+  linha: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.three },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  infoText: { ...texto.meta },
 });

@@ -4,7 +4,7 @@ import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 import { Button, EmptyState, ErrorState, LoadingSpinner } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
-import { typography } from '@shared/theme/typography';
+import { texto } from '@shared/theme/typography';
 import { useImagensProblema } from '../hooks/useImagensProblema';
 import { useEnviarEvidencia } from '../hooks/useEnviarEvidencia';
 
@@ -49,7 +49,7 @@ export function EvidenciasProblema({ problemaId, podeAdicionar }: EvidenciasProb
 
   return (
     <View style={styles.container}>
-      <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>Evidências</Text>
+      <Text accessibilityRole="header" style={[styles.titulo, { color: theme.colors.onSurface }]}>Evidências</Text>
 
       {imagens.isLoading && <LoadingSpinner size="small" />}
 
@@ -64,22 +64,30 @@ export function EvidenciasProblema({ problemaId, podeAdicionar }: EvidenciasProb
 
       {!imagens.isLoading && !imagens.isError && imagens.data?.length === 0 && (
         <EmptyState
+          compacto
+          icon="camera-outline"
           title="Nenhuma foto ainda"
-          description="Fotos enviadas para este problema aparecem aqui."
+          description="Quem apoia pode enviar fotos do local. Elas ajudam no encaminhamento."
         />
       )}
 
       {!imagens.isLoading && !imagens.isError && !!imagens.data?.length && (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.galeria}>
           {imagens.data.map((imagem) => (
-            <Image key={imagem.id} source={{ uri: imagem.url }} style={styles.foto} />
+            <Image
+              key={imagem.id}
+              source={{ uri: imagem.url }}
+              style={styles.foto}
+              accessibilityRole="image"
+              accessibilityLabel={`Evidência ${imagem.ordem + 1}`}
+            />
           ))}
         </ScrollView>
       )}
 
       {enviar.progresso !== null && (
         <Text style={[styles.progresso, { color: theme.colors.primary }]}>
-          Enviando imagem... {enviar.progresso}%
+          Enviando foto… {enviar.progresso}%
         </Text>
       )}
 
@@ -107,10 +115,10 @@ export function EvidenciasProblema({ problemaId, podeAdicionar }: EvidenciasProb
 
 const styles = StyleSheet.create({
   container: { gap: spacing.two },
-  titulo: { fontSize: typography.fontSize.md, fontWeight: '700' },
+  titulo: { ...texto.tituloSecao },
   galeria: { gap: spacing.two },
-  foto: { width: 132, height: 99, borderRadius: 8 },
-  progresso: { fontSize: typography.fontSize.sm },
-  erro: { fontSize: typography.fontSize.xs },
+  foto: { width: 144, height: 108, borderRadius: 12 },
+  progresso: { ...texto.meta },
+  erro: { ...texto.meta },
   acao: { alignSelf: 'flex-start' },
 });

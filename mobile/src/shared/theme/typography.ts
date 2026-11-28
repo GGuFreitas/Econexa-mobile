@@ -29,3 +29,23 @@ export const typography = {
 } as const;
 
 export type Typography = typeof typography;
+
+/**
+ * Papéis de texto. Use estes em vez de escolher tamanho por tela.
+ * Mínimo de 13 para qualquer texto que informe algo: o app é usado na rua, no sol.
+ * Os tamanhos acompanham a fonte do sistema (allowFontScaling padrão do RN).
+ */
+export const texto = {
+  display: { fontSize: 30, lineHeight: 36, fontWeight: '700' },
+  titulo: { fontSize: 22, lineHeight: 28, fontWeight: '700' },
+  tituloSecao: { fontSize: 17, lineHeight: 24, fontWeight: '700' },
+  corpo: { fontSize: 15, lineHeight: 22, fontWeight: '400' },
+  corpoForte: { fontSize: 15, lineHeight: 22, fontWeight: '600' },
+  meta: { fontSize: 13, lineHeight: 18, fontWeight: '400' },
+  rotulo: { fontSize: 13, lineHeight: 18, fontWeight: '600' },
+  botao: { fontSize: 15, lineHeight: 20, fontWeight: '700' },
+  numero: { fontSize: 20, lineHeight: 24, fontWeight: '800' },
+} as const;
+
+/** Altura mínima de qualquer alvo de toque (padrão Android: 48dp). */
+export const ALVO_MINIMO = 48;

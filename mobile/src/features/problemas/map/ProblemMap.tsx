@@ -1,38 +1,42 @@
-import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import MapView, { type Region } from 'react-native-maps';
+import { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, type LayoutChangeEvent } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { FAB, LoadingSpinner, ErrorState, EmptyState } from '@shared/ui';
+import { FAB, LoadingSpinner, ErrorState } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
+import { texto } from '@shared/theme/typography';
 import { useLocalizacao } from '@shared/hooks/useLocalizacao';
+import { useMeusApoios } from '@features/perfil/hooks/usePerfil';
 import { useProblemas, useEstatisticas, useApoio } from '../hooks';
 import { clusterizar } from '../utils/clusterUtils';
-import { ProblemMarker } from './ProblemMarker';
-import { ProblemCluster } from './ProblemCluster';
+import { RAIO_PERTO_METROS } from '../utils/proximidade';
+import { MapaBase } from './MapaBase';
 import { MapBottomSheet } from './MapBottomSheet';
 import { MapFilters } from './MapFilters';
-import { MapLegend } from './MapLegend';
 import { PertoDeVoce } from './PertoDeVoce';
-import { RAIO_PERTO_METROS } from '../utils/proximidade';
+import { mapShadow } from './mapTheme';
+import type { Regiao } from './mapaBase.types';
 import type { Problema } from '../types';
 
 interface ProblemMapProps {
   onRelatar?: () => void;
   onVerDetalhes?: (id: number) => void;
-  onApoiar?: (id: number) => void;
 }
 
-export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapProps) {
+const DELTA_INICIAL = 0.04;
+
+export function ProblemMap({ onRelatar, onVerDetalhes }: ProblemMapProps) {
   const theme = useAppTheme();
   const insets = useSafeAreaInsets();
-  const abaixoDoTopo = insets.top + 64;
+  const [alturaTopo, setAlturaTopo] = useState(insets.top + 64);
   const { coordenada, carregando, erro } = useLocalizacao();
   const [filtroCausa, setFiltroCausa] = useState<number | null>(null);
-  const [regiao, setRegiao] = useState<Region | null>(null);
-  const [selecionado, setSelecionado] = useState<Problema | null>(null);
+  const [regiao, setRegiao] = useState<Regiao | null>(null);
+  const [selecionadoId, setSelecionadoId] = useState<number | null>(null);
+  const { data: meusApoios } = useMeusApoios();
 
-  const { data: problemas, isLoading, isError } = useProblemas({
+  const { data: problemas, isLoading, isError, refetch } = useProblemas({
     lat: coordenada?.latitude,
     lng: coordenada?.longitude,
     raio: RAIO_PERTO_METROS,
@@ -48,82 +52,108 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
     status: 'ativo',
   });
 
+  // O mapa abre já (no centro de SP) e vai para a pessoa quando o GPS responde.
+  useEffect(() => {
+    if (carregando || erro || !coordenada || regiao) return;
+    setRegiao({ ...coordenada, latitudeDelta: DELTA_INICIAL, longitudeDelta: DELTA_INICIAL });
+  }, [carregando, erro, coordenada, regiao]);
+
   const cellSize = regiao ? Math.max(0.008, regiao.latitudeDelta / 10) : 0.02;
-  const clusters = useMemo(
-    () => clusterizar(problemas ?? [], cellSize),
-    [problemas, cellSize],
-  );
+  const clusters = useMemo(() => clusterizar(problemas ?? [], cellSize), [problemas, cellSize]);
 
-  const { apoiar } = useApoio(selecionado?.id ?? 0);
+  // Lê o problema da lista atual, para a prévia refletir apoios recém-dados.
+  const selecionado: Problema | null = problemas?.find((p) => p.id === selecionadoId) ?? null;
+  const apoiado = selecionadoId != null && (meusApoios ?? []).includes(selecionadoId);
+  const { apoiar, desapoiar } = useApoio(selecionadoId ?? 0);
+  const alternarApoio = () => (apoiado ? desapoiar.mutate() : apoiar.mutate());
 
-  if (carregando || (isLoading && !problemas)) return <LoadingSpinner />;
-  if (isError) return <ErrorState message="Não foi possível carregar o mapa." />;
+  const medirTopo = (e: LayoutChangeEvent) => setAlturaTopo(e.nativeEvent.layout.height);
+  const abaixoDoTopo = alturaTopo + spacing.two;
 
-  const regiaoInicial: Region =
-    regiao ?? {
-      latitude: coordenada?.latitude ?? -23.5505,
-      longitude: coordenada?.longitude ?? -46.6333,
-      latitudeDelta: 0.04,
-      longitudeDelta: 0.04,
-    };
+  if (isLoading && !problemas) return <LoadingSpinner mensagem="Carregando o mapa" />;
+  if (isError && !problemas) {
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background, paddingTop: insets.top }}>
+        <ErrorState message="Não deu para carregar o mapa." dica="Confira sua conexão e tente de novo." onRetry={() => refetch()} />
+      </View>
+    );
+  }
+
+  const regiaoInicial: Regiao = {
+    latitude: coordenada?.latitude ?? -23.5505,
+    longitude: coordenada?.longitude ?? -46.6333,
+    latitudeDelta: DELTA_INICIAL,
+    longitudeDelta: DELTA_INICIAL,
+  };
+  const vazio = !problemas?.length && !isLoading;
 
   return (
     <View style={{ flex: 1 }}>
-      <MapView
-        style={StyleSheet.absoluteFill}
-        initialRegion={regiaoInicial}
-        region={regiao ?? undefined}
-        onRegionChangeComplete={(r) => setRegiao(r)}
-        showsUserLocation
-        showsMyLocationButton={false}
-      >
-        {clusters.map((grupo) => {
-          if (grupo.pontos.length === 1) {
-            const p = grupo.pontos[0];
-            return (
-              <ProblemMarker key={p.id} problema={p} onPress={setSelecionado} />
-            );
-          }
-          return (
-            <ProblemCluster
-              key={grupo.id}
-              pontos={grupo.pontos}
-              onPress={() =>
-                setRegiao({
-                  latitude: grupo.coordenada.latitude,
-                  longitude: grupo.coordenada.longitude,
-                  latitudeDelta: (regiao?.latitudeDelta ?? 0.04) / 3,
-                  longitudeDelta: (regiao?.longitudeDelta ?? 0.04) / 3,
-                })
-              }
-            />
-          );
-        })}
-      </MapView>
+      <MapaBase
+        regiaoInicial={regiaoInicial}
+        regiao={regiao}
+        onMudarRegiao={setRegiao}
+        clusters={clusters}
+        onSelecionar={(p) => setSelecionadoId(p.id)}
+        onAproximar={(grupo) =>
+          setRegiao({
+            latitude: grupo.coordenada.latitude,
+            longitude: grupo.coordenada.longitude,
+            latitudeDelta: (regiao?.latitudeDelta ?? DELTA_INICIAL) / 3,
+            longitudeDelta: (regiao?.longitudeDelta ?? DELTA_INICIAL) / 3,
+          })
+        }
+      />
 
-      <View style={[styles.topBar, { backgroundColor: theme.colors.surface, paddingTop: insets.top + spacing.one }]}>
+      <View
+        onLayout={medirTopo}
+        style={[
+          styles.topBar,
+          { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outline, paddingTop: insets.top + spacing.one },
+        ]}
+      >
         <MapFilters ativo={filtroCausa} onSelecionar={setFiltroCausa} />
       </View>
 
-      {!erro && coordenada && estatisticas && (
+      {!erro && !carregando && estatisticas && (
         <PertoDeVoce total={estatisticas.total} raioKm={RAIO_PERTO_METROS / 1000} top={abaixoDoTopo} />
       )}
 
       {erro && (
         <View
           accessibilityRole="alert"
-          style={[styles.aviso, { top: abaixoDoTopo, backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}
+          style={[
+            styles.aviso,
+            mapShadow,
+            { top: abaixoDoTopo, backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow },
+          ]}
         >
-          <Text style={[styles.avisoTexto, { color: theme.colors.onSurfaceVariant }]}>
-            {erro} Mostrando o centro de São Paulo.
+          <MaterialCommunityIcons name="crosshairs-off" size={18} color={theme.colors.onSurfaceVariant} />
+          <Text style={[styles.avisoTexto, { color: theme.colors.onSurface }]}>
+            Sem sua localização. Mostrando o centro de São Paulo.
           </Text>
         </View>
       )}
 
-      <MapLegend />
+      {vazio && (
+        <View
+          style={[
+            styles.vazio,
+            mapShadow,
+            { backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow },
+          ]}
+        >
+          <Text style={[styles.vazioTitulo, { color: theme.colors.onSurface }]}>Nenhum problema por aqui</Text>
+          <Text style={[styles.vazioTexto, { color: theme.colors.onSurfaceVariant }]}>
+            {filtroCausa ? 'Nada desta categoria nesta área. Tente outra.' : 'Viu algo na rua? Toque em Relatar.'}
+          </Text>
+        </View>
+      )}
 
       <FAB
         icon="plus"
+        label="Relatar"
+        accessibilityLabel="Relatar um problema"
         style={[styles.fab, { backgroundColor: theme.colors.secondary }]}
         color={theme.colors.onSecondary}
         onPress={onRelatar}
@@ -132,53 +162,43 @@ export function ProblemMap({ onRelatar, onVerDetalhes, onApoiar }: ProblemMapPro
       <MapBottomSheet
         problema={selecionado}
         visible={selecionado != null}
-        onDismiss={() => setSelecionado(null)}
+        apoiado={apoiado}
+        enviando={apoiar.isPending || desapoiar.isPending}
+        onDismiss={() => setSelecionadoId(null)}
+        onAlternarApoio={alternarApoio}
         onVerDetalhes={(id) => {
-          setSelecionado(null);
+          setSelecionadoId(null);
           onVerDetalhes?.(id);
         }}
-        onApoiar={selecionado ? () => apoiar.mutate() : undefined}
-        apoiando={apoiar.isPending}
       />
-
-      {!problemas?.length && !isLoading && (
-        <View style={styles.emptyOverlay}>
-          <EmptyState title="Nenhum problema por aqui" description="Toque no + para relatar algo." />
-        </View>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  topBar: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    paddingTop: spacing.two,
-    borderBottomWidth: 1,
-  },
+  topBar: { position: 'absolute', top: 0, left: 0, right: 0, borderBottomWidth: 1, paddingBottom: spacing.half },
   aviso: {
     position: 'absolute',
     left: spacing.three,
     right: spacing.three,
-    paddingVertical: spacing.one,
-    paddingHorizontal: spacing.two,
-    borderRadius: 12,
-    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.one,
+    paddingVertical: spacing.two,
+    paddingHorizontal: spacing.three,
+    borderRadius: 16,
   },
-  avisoTexto: { fontSize: 13 },
-  fab: {
+  avisoTexto: { ...texto.meta, fontSize: 14, flex: 1 },
+  fab: { position: 'absolute', right: spacing.three, bottom: spacing.three },
+  vazio: {
     position: 'absolute',
-    right: spacing.four,
-    bottom: 96,
+    left: spacing.three,
+    right: 128,
+    bottom: spacing.three,
+    borderRadius: 16,
+    padding: spacing.three,
+    gap: 2,
   },
-  emptyOverlay: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 120,
-    height: 200,
-  },
+  vazioTitulo: { ...texto.corpoForte },
+  vazioTexto: { ...texto.meta },
 });

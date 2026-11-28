@@ -41,8 +41,7 @@ export default function ExcluirContaScreen() {
   const handleVoltar = () => navigation.goBack();
 
   return (
-    <ScreenWrapper>
-      <Header title="Excluir conta" onBack={handleVoltar} />
+    <ScreenWrapper cabecalho={<Header title="Excluir conta" onBack={handleVoltar} />} baseSegura>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>
           Esta ação não pode ser desfeita.

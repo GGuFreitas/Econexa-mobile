@@ -5,6 +5,10 @@ export type ProblemPriority = 'critical' | 'high' | 'medium' | 'low';
 export interface CausaConfig {
   id: CausaId;
   nome: string;
+  /**
+   * Cor de identidade da categoria (espelha o seed do backend). Não use na
+   * interface: várias falham em contraste. Use `corDaCausa(theme, id)`.
+   */
   cor: string;
   icone: string;
   priority: ProblemPriority;

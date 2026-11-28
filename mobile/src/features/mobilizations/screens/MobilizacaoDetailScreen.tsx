@@ -11,11 +11,12 @@ import {
   LoadingSpinner,
   ErrorState,
   Modal,
+  PilulaStatus,
 } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
 import { typography } from '@shared/theme/typography';
-import { statusLabels, statusColors } from '../utils/statusTransitions';
+import { statusLabels, statusPapeis, statusIcones } from '../utils/statusTransitions';
 import { useMobilizacao } from '../hooks/useMobilizacao';
 import { useParticipar } from '../hooks/useParticipar';
 import { useSair } from '../hooks/useSair';
@@ -52,7 +53,6 @@ export function MobilizacaoDetailScreen() {
   if (isError || !mobilizacao) return <ErrorState message="Mobilização não encontrada." />;
 
   const label = STATUS_LABELS[mobilizacao.status];
-  const color = statusColors[mobilizacao.status as keyof typeof statusColors] ?? '#64748B';
   const podeGerenciar = mobilizacao.pode_gerenciar;
   const jaParticipa = mobilizacao.usuario_participa;
 
@@ -75,13 +75,14 @@ export function MobilizacaoDetailScreen() {
   };
 
   return (
-    <ScreenWrapper>
-      <Header title="Mobilização" onBack={() => navigation.goBack()} />
+    <ScreenWrapper cabecalho={<Header title="Mobilização" onBack={() => navigation.goBack()} />} baseSegura>
       <ScrollView contentContainerStyle={styles.container}>
         <View style={styles.header}>
-          <View style={[styles.statusBadge, { backgroundColor: color }]}>
-            <Text style={styles.statusBadgeText}>{label}</Text>
-          </View>
+          <PilulaStatus
+            rotulo={label}
+            papel={statusPapeis[mobilizacao.status as MobilizacaoStatus] ?? 'neutro'}
+            icone={statusIcones[mobilizacao.status as MobilizacaoStatus]}
+          />
           <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>{mobilizacao.titulo}</Text>
         </View>
 
@@ -221,13 +222,7 @@ function formatMetrica(key: string): string {
 
 const styles = StyleSheet.create({
   container: { padding: spacing.four, gap: spacing.three },
-  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  statusBadge: {
-    paddingHorizontal: spacing.two,
-    paddingVertical: spacing.one,
-    borderRadius: 999,
-  },
-  statusBadgeText: { color: '#FFFFFF', fontWeight: '700', fontSize: typography.fontSize.xs },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
   titulo: { fontSize: typography.fontSize.xl, fontWeight: '700', flex: 1 },
   infoCard: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, padding: spacing.three },
   infoText: { fontSize: typography.fontSize.base },

@@ -2,7 +2,9 @@ import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
-import { typography } from '@shared/theme/typography';
+import { texto } from '@shared/theme/typography';
+import { mapShadow } from './mapTheme';
+import { rotuloProblemas } from '../utils/proximidade';
 
 interface PertoDeVoceProps {
   total: number;
@@ -14,14 +16,17 @@ export function PertoDeVoce({ total, raioKm, top = 64 }: PertoDeVoceProps) {
   const theme = useAppTheme();
 
   return (
-    <View style={[styles.card, { top, backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}>
-      <MaterialCommunityIcons name="map-marker-radius" size={20} color={theme.colors.primary} />
-      <Text style={[styles.title, { color: theme.colors.onSurface }]}>Perto de você</Text>
-      <View style={[styles.divider, { backgroundColor: theme.colors.outline }]} />
-      <Text style={[styles.metric, { color: theme.colors.onSurface }]}>{total}</Text>
-      <Text style={[styles.metricLabel, { color: theme.colors.onSurfaceVariant }]}>
-        em {raioKm}km
+    <View
+      accessible
+      accessibilityRole="summary"
+      accessibilityLabel={`Perto de você: ${rotuloProblemas(total)} em até ${raioKm} quilômetros`}
+      style={[styles.card, mapShadow, { top, backgroundColor: theme.colors.surface, shadowColor: theme.colors.shadow }]}
+    >
+      <MaterialCommunityIcons name="crosshairs-gps" size={18} color={theme.colors.primary} />
+      <Text style={[styles.texto, { color: theme.colors.onSurface }]}>
+        <Text style={styles.forte}>{rotuloProblemas(total)}</Text> perto de você
       </Text>
+      <Text style={[styles.meta, { color: theme.colors.onSurfaceVariant }]}>· {raioKm} km</Text>
     </View>
   );
 }
@@ -29,17 +34,15 @@ export function PertoDeVoce({ total, raioKm, top = 64 }: PertoDeVoceProps) {
 const styles = StyleSheet.create({
   card: {
     position: 'absolute',
-    left: spacing.three,
+    alignSelf: 'center',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.two,
-    paddingVertical: spacing.two,
+    gap: spacing.one,
+    paddingVertical: spacing.one,
     paddingHorizontal: spacing.three,
-    borderRadius: 16,
-    borderWidth: 1,
+    borderRadius: 99,
   },
-  title: { fontSize: typography.fontSize.sm, fontWeight: '700' },
-  divider: { width: 1, height: 20 },
-  metric: { fontSize: typography.fontSize.lg, fontWeight: '800' },
-  metricLabel: { fontSize: typography.fontSize.xs },
+  texto: { ...texto.meta, fontSize: 14 },
+  forte: { fontWeight: '700' },
+  meta: { ...texto.meta },
 });

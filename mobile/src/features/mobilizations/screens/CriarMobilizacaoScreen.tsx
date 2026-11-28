@@ -21,8 +21,7 @@ export function CriarMobilizacaoScreen() {
   if (!coordenada) return <LoadingSpinner />;
 
   return (
-    <ScreenWrapper>
-      <Header title="Nova mobilização" onBack={() => navigation.goBack()} />
+    <ScreenWrapper cabecalho={<Header title="Nova mobilização" onBack={() => navigation.goBack()} />} baseSegura>
       <CriarMobilizacaoForm
         problemaId={problemaId}
         coordenada={coordenada}

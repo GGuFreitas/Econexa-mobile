@@ -2,9 +2,12 @@ import { Platform, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
-import { typography } from '@shared/theme/typography';
-import { comAlfa, iniciais } from '../utils/perfil';
+import { texto } from '@shared/theme/typography';
+import { comAlfa } from '@shared/theme/alfa';
+import { iniciais } from '../utils/perfil';
 
+// Desfoque nativo confiável só no iOS. No Android e na web o "vidro" é feito
+// com a folha quase opaca sobre a capa, com borda clara: o mesmo efeito, sem custo.
 const DESFOCA = Platform.OS === 'ios';
 
 interface Numero {
@@ -20,34 +23,34 @@ interface CartaoIdentidadeProps {
 
 export function CartaoIdentidade({ nome, subtitulo, numeros }: CartaoIdentidadeProps) {
   const theme = useAppTheme();
+  const opacidade = DESFOCA ? 0.74 : 0.9;
 
   return (
     <View
       style={[
         styles.cartao,
-        { borderColor: comAlfa(theme.colors.surface, 0.6), shadowColor: theme.colors.shadow },
+        {
+          borderColor: comAlfa(theme.dark ? theme.colors.onSurface : theme.colors.surface, theme.dark ? 0.12 : 0.8),
+          shadowColor: theme.colors.shadow,
+        },
       ]}
     >
       {DESFOCA && (
-        <BlurView
-          intensity={40}
-          tint={theme.dark ? 'dark' : 'light'}
-          style={StyleSheet.absoluteFill}
-        />
+        <BlurView intensity={40} tint={theme.dark ? 'dark' : 'light'} style={StyleSheet.absoluteFill} />
       )}
-      <View
-        style={[
-          StyleSheet.absoluteFill,
-          { backgroundColor: comAlfa(theme.colors.surface, DESFOCA ? 0.74 : 1) },
-        ]}
-      />
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: comAlfa(theme.colors.surface, opacidade) }]} />
 
       <View style={styles.identidade}>
-        <View style={[styles.avatar, { backgroundColor: theme.colors.primaryContainer }]}>
-          <Text style={[styles.iniciais, { color: theme.colors.primary }]}>{iniciais(nome)}</Text>
+        <View
+          aria-hidden
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={[styles.avatar, { backgroundColor: theme.colors.primary }]}
+        >
+          <Text style={[styles.iniciais, { color: theme.colors.onPrimary }]}>{iniciais(nome)}</Text>
         </View>
         <View style={styles.textos}>
-          <Text style={[styles.nome, { color: theme.colors.onSurface }]} numberOfLines={1}>
+          <Text accessibilityRole="header" style={[styles.nome, { color: theme.colors.onSurface }]} numberOfLines={2}>
             {nome}
           </Text>
           <Text style={[styles.sub, { color: theme.colors.onSurfaceVariant }]}>{subtitulo}</Text>
@@ -63,7 +66,7 @@ export function CartaoIdentidade({ nome, subtitulo, numeros }: CartaoIdentidadeP
             style={[styles.numero, { backgroundColor: theme.colors.surfaceVariant }]}
           >
             <Text style={[styles.valor, { color: theme.colors.onSurface }]}>{numero.valor}</Text>
-            <Text style={[styles.rotulo, { color: theme.colors.onSurfaceVariant }]}>
+            <Text style={[styles.rotulo, { color: theme.colors.onSurfaceVariant }]} numberOfLines={2}>
               {numero.rotulo}
             </Text>
           </View>
@@ -75,32 +78,38 @@ export function CartaoIdentidade({ nome, subtitulo, numeros }: CartaoIdentidadeP
 
 const styles = StyleSheet.create({
   cartao: {
-    marginTop: -62,
-    marginHorizontal: spacing.two,
-    borderRadius: 16,
+    marginTop: -64,
+    marginHorizontal: spacing.three,
+    borderRadius: 20,
     borderWidth: 1,
     overflow: 'hidden',
-    padding: spacing.three - 2,
-    gap: spacing.two,
+    padding: spacing.three,
+    gap: spacing.three,
     shadowOpacity: 0.14,
-    shadowRadius: 12,
+    shadowRadius: 16,
     shadowOffset: { width: 0, height: 8 },
     elevation: 4,
   },
-  identidade: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
+  identidade: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
   avatar: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  iniciais: { fontSize: typography.fontSize.lg, fontWeight: '700' },
-  textos: { flex: 1, minWidth: 0 },
-  nome: { fontSize: typography.fontSize.md + 1, fontWeight: '700' },
-  sub: { fontSize: typography.fontSize.sm },
+  iniciais: { ...texto.numero },
+  textos: { flex: 1, minWidth: 0, gap: 2 },
+  nome: { ...texto.titulo, fontSize: 20, lineHeight: 26 },
+  sub: { ...texto.meta },
   numeros: { flexDirection: 'row', gap: spacing.one },
-  numero: { flex: 1, alignItems: 'center', paddingVertical: spacing.one, borderRadius: 10 },
-  valor: { fontSize: typography.fontSize.md + 1, fontWeight: '800' },
-  rotulo: { fontSize: typography.fontSize.xs },
+  numero: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: spacing.two,
+    paddingHorizontal: spacing.half,
+    borderRadius: 14,
+  },
+  valor: { ...texto.numero },
+  rotulo: { ...texto.meta, textAlign: 'center' },
 });

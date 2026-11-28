@@ -1,3 +1,4 @@
+import type { PapelStatus } from '@shared/ui/PilulaStatus';
 import type { MobilizacaoStatus } from '../types';
 
 const allowedTransitions: Record<MobilizacaoStatus, MobilizacaoStatus[]> = {
@@ -22,9 +23,17 @@ export const statusLabels: Record<MobilizacaoStatus, string> = {
   cancelada: 'Cancelada',
 };
 
-export const statusColors: Record<MobilizacaoStatus, string> = {
-  agendada: '#3b82f6', // blue
-  em_andamento: '#f59e0b', // amber
-  realizada: '#10b981', // emerald
-  cancelada: '#ef4444', // red
+/** Papel semântico de cada status (a cor vem do tema, nunca fixa). */
+export const statusPapeis: Record<MobilizacaoStatus, PapelStatus> = {
+  agendada: 'andamento',
+  em_andamento: 'atencao',
+  realizada: 'sucesso',
+  cancelada: 'neutro',
+};
+
+export const statusIcones: Record<MobilizacaoStatus, string> = {
+  agendada: 'calendar-clock',
+  em_andamento: 'progress-clock',
+  realizada: 'check-circle-outline',
+  cancelada: 'close-circle-outline',
 };

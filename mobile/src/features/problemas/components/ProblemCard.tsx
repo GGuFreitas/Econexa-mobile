@@ -3,12 +3,14 @@ import { AccessibilityInfo, Animated, Image, Pressable, StyleSheet, Text, View }
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { spacing } from '@shared/theme/spacing';
-import { typography } from '@shared/theme/typography';
+import { texto, ALVO_MINIMO } from '@shared/theme/typography';
+import { corDaCausa } from '@shared/theme/theme';
+import { comAlfa } from '@shared/theme/alfa';
+import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { getCausa } from '../map/markerConfig';
 import { useApoio } from '../hooks/useApoio';
 import { META_APOIOS, progressoMeta } from '../utils/meta';
 import { formatarDistancia } from '../utils/proximidade';
-import { useAppTheme } from '@shared/hooks/useAppTheme';
 import type { ProblemaListado } from '../types';
 
 type Icone = keyof typeof MaterialCommunityIcons.glyphMap;
@@ -17,14 +19,21 @@ interface ProblemCardProps {
   problema: ProblemaListado;
   apoiado: boolean;
   onPress: (id: number) => void;
+  /** Avisado quando o apoio é retirado, com como desfazer. */
+  onApoioRetirado?: (desfazer: () => void) => void;
 }
 
-const BRANCO = '#FFFFFF';
-const BRANCO_SUAVE = 'rgba(255, 255, 255, 0.88)';
+const ALTURA_MINIMA = 300;
 
-export function ProblemCard({ problema, apoiado, onPress }: ProblemCardProps) {
+/**
+ * Cartão do Feed: foto de ponta a ponta, selo da categoria, painel de vidro
+ * com o véu escuro de reserva e o Apoiar num toque.
+ * Abrir o problema e Apoiar são dois alvos separados (leitor de tela chega aos dois).
+ */
+export function ProblemCard({ problema, apoiado, onPress, onApoioRetirado }: ProblemCardProps) {
   const theme = useAppTheme();
   const causa = getCausa(problema.causa_id);
+  const cor = corDaCausa(theme, problema.causa_id);
   const icone = causa.icone as Icone;
   const { apoiar, desapoiar } = useApoio(problema.id);
   const [semMovimento, setSemMovimento] = useState(false);
@@ -41,12 +50,22 @@ export function ProblemCard({ problema, apoiado, onPress }: ProblemCardProps) {
   const distancia =
     problema.distancia_m != null ? formatarDistancia(Number(problema.distancia_m)) : null;
   const local = [distancia, problema.local_nome].filter(Boolean).join(' · ');
+  const temFoto = Boolean(problema.capa_url);
+  const rotuloAbrir = [
+    problema.titulo,
+    causa.nome,
+    local,
+    `${total} de ${META_APOIOS} apoios`,
+    temFoto ? null : 'Ainda sem foto',
+  ]
+    .filter(Boolean)
+    .join('. ');
 
   const pulsar = () => {
     if (semMovimento) return;
     escala.setValue(1);
     Animated.sequence([
-      Animated.spring(escala, { toValue: 1.3, useNativeDriver: true, speed: 40, bounciness: 12 }),
+      Animated.spring(escala, { toValue: 1.15, useNativeDriver: true, speed: 40, bounciness: 10 }),
       Animated.spring(escala, { toValue: 1, useNativeDriver: true, speed: 20 }),
     ]).start();
   };
@@ -54,75 +73,112 @@ export function ProblemCard({ problema, apoiado, onPress }: ProblemCardProps) {
   const alternarApoio = () => {
     if (apoiado) {
       desapoiar.mutate();
+      onApoioRetirado?.(() => apoiar.mutate());
       return;
     }
     pulsar();
     apoiar.mutate();
   };
 
+  const botaoFundo = apoiado ? theme.colors.primaryContainer : theme.colors.secondary;
+  const botaoTexto = apoiado ? theme.colors.onPrimaryContainer : theme.colors.onSecondary;
+
   return (
-    <Pressable
-      onPress={() => onPress(problema.id)}
-      accessibilityRole="button"
-      accessibilityLabel={`${problema.titulo}. ${causa.nome}. ${total} de ${META_APOIOS} apoios.`}
-      style={[styles.card, { backgroundColor: causa.cor }]}
-    >
-      {problema.capa_url ? (
+    <View style={[styles.card, { backgroundColor: theme.colors.surfaceVariant }]}>
+      {temFoto ? (
         <Image
-          source={{ uri: problema.capa_url }}
+          source={{ uri: problema.capa_url! }}
           style={StyleSheet.absoluteFill}
           resizeMode="cover"
           accessibilityIgnoresInvertColors
         />
       ) : (
-        <View style={styles.semFoto}>
-          <MaterialCommunityIcons name={icone} size={96} color="rgba(255, 255, 255, 0.55)" />
+        <View style={styles.semFoto} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden aria-hidden>
+          <MaterialCommunityIcons name={icone} size={96} color={comAlfa(cor.cor, 0.45)} />
         </View>
       )}
 
-      <View style={[styles.selo, { backgroundColor: causa.cor }]}>
-        <MaterialCommunityIcons name={icone} size={14} color={BRANCO} />
-        <Text style={styles.seloTexto}>{causa.nome}</Text>
+      {/* Alvo "abrir": cobre o cartão todo, por baixo do painel. */}
+      <Pressable
+        onPress={() => onPress(problema.id)}
+        accessibilityRole="button"
+        accessibilityLabel={rotuloAbrir}
+        accessibilityHint="Abre os detalhes do problema"
+        android_ripple={{ color: comAlfa(theme.colors.onVeu, 0.12) }}
+        style={StyleSheet.absoluteFill}
+      />
+
+      <View
+        pointerEvents="none"
+        importantForAccessibility="no-hide-descendants"
+          aria-hidden
+        accessibilityElementsHidden
+        style={styles.topo}
+      >
+        <View style={[styles.selo, { backgroundColor: cor.cor }]}>
+          <MaterialCommunityIcons name={icone} size={16} color={cor.sobre} />
+          <Text style={[styles.seloTexto, { color: cor.sobre }]}>{causa.nome}</Text>
+        </View>
+        {problema.cont_imagens > 1 && (
+          <View style={[styles.contador, { backgroundColor: theme.colors.veu }]}>
+            <MaterialCommunityIcons name="image-multiple" size={16} color={theme.colors.onVeu} />
+            <Text style={[styles.contadorTexto, { color: theme.colors.onVeu }]}>{problema.cont_imagens}</Text>
+          </View>
+        )}
       </View>
 
-      {problema.cont_imagens > 1 && (
-        <View style={styles.contador}>
-          <MaterialCommunityIcons name="image-multiple" size={14} color={BRANCO} />
-          <Text style={styles.contadorTexto}>{problema.cont_imagens}</Text>
+      <View pointerEvents="box-none" style={styles.painel}>
+        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} pointerEvents="none" />
+        <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: theme.colors.veu }]} />
+
+        <View
+          pointerEvents="none"
+          importantForAccessibility="no-hide-descendants"
+          aria-hidden
+          accessibilityElementsHidden
+          style={styles.infos}
+        >
+          <Text style={[styles.titulo, { color: theme.colors.onVeu }]} numberOfLines={2}>
+            {problema.titulo}
+          </Text>
+
+          {local !== '' && (
+            <View style={styles.linha}>
+              <MaterialCommunityIcons name="map-marker" size={16} color={theme.colors.onVeuSuave} />
+              <Text style={[styles.sub, { color: theme.colors.onVeuSuave }]} numberOfLines={1}>
+                {local}
+              </Text>
+            </View>
+          )}
+
+          {!temFoto && (
+            <View style={styles.linha}>
+              <MaterialCommunityIcons name="camera-plus" size={16} color={theme.colors.onVeuSuave} />
+              <Text style={[styles.sub, { color: theme.colors.onVeuSuave }]}>
+                Ainda sem foto. Quem apoia pode enviar uma.
+              </Text>
+            </View>
+          )}
         </View>
-      )}
-
-      <View style={styles.painel}>
-        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-        <View style={[StyleSheet.absoluteFill, styles.veu]} />
-
-        <Text style={styles.titulo} numberOfLines={2}>
-          {problema.titulo}
-        </Text>
-
-        {local !== '' && (
-          <View style={styles.linha}>
-            <MaterialCommunityIcons name="map-marker" size={14} color={BRANCO_SUAVE} />
-            <Text style={styles.sub} numberOfLines={1}>
-              {local}
-            </Text>
-          </View>
-        )}
-
-        {!problema.capa_url && (
-          <View style={styles.linha}>
-            <MaterialCommunityIcons name="camera-plus" size={14} color={BRANCO_SUAVE} />
-            <Text style={styles.sub}>Ainda sem foto. Quem apoia pode enviar uma.</Text>
-          </View>
-        )}
 
         <View style={styles.rodape}>
-          <View style={styles.meta}>
-            <View style={styles.barra}>
-              <View style={[styles.barraCheia, { width: `${progressoMeta(total)}%` }]} />
+          <View
+            pointerEvents="none"
+            importantForAccessibility="no-hide-descendants"
+          aria-hidden
+            accessibilityElementsHidden
+            style={styles.meta}
+          >
+            <View style={[styles.barra, { backgroundColor: comAlfa(theme.colors.onVeu, 0.25) }]}>
+              <View
+                style={[
+                  styles.barraCheia,
+                  { width: `${progressoMeta(total)}%`, backgroundColor: theme.colors.onVeu },
+                ]}
+              />
             </View>
-            <Text style={styles.sub}>
-              <Text style={styles.forte}>{total}</Text> de {META_APOIOS} apoios
+            <Text style={[styles.sub, { color: theme.colors.onVeuSuave }]}>
+              <Text style={[styles.forte, { color: theme.colors.onVeu }]}>{total}</Text> de {META_APOIOS} apoios
             </Text>
           </View>
 
@@ -130,40 +186,37 @@ export function ProblemCard({ problema, apoiado, onPress }: ProblemCardProps) {
             <Pressable
               onPress={alternarApoio}
               disabled={enviando}
-              hitSlop={4}
               accessibilityRole="button"
-              accessibilityLabel={apoiado ? 'Você apoia. Toque para retirar o apoio' : 'Apoiar'}
+              accessibilityLabel={apoiado ? `Você apoia ${problema.titulo}` : `Apoiar ${problema.titulo}`}
+              accessibilityHint={apoiado ? 'Toque para retirar o apoio' : undefined}
               accessibilityState={{ selected: apoiado, busy: enviando }}
-              style={[
-                styles.botao,
-                apoiado
-                  ? styles.botaoAtivo
-                  : { backgroundColor: theme.colors.secondary, borderColor: theme.colors.secondary },
-              ]}
+              android_ripple={{ color: comAlfa(botaoTexto, 0.16), borderless: false }}
+              style={[styles.botao, { backgroundColor: botaoFundo, opacity: enviando ? 0.7 : 1 }]}
             >
               <MaterialCommunityIcons
                 name={apoiado ? 'check-circle' : 'thumb-up'}
                 size={18}
-                color={apoiado ? theme.colors.primary : theme.colors.onSecondary}
+                color={botaoTexto}
               />
-              <Text
-                style={[
-                  styles.botaoTexto,
-                  { color: apoiado ? theme.colors.primary : theme.colors.onSecondary },
-                ]}
-              >
+              <Text style={[styles.botaoTexto, { color: botaoTexto }]}>
                 {apoiado ? 'Apoiando' : 'Apoiar'}
               </Text>
             </Pressable>
           </Animated.View>
         </View>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: { height: 300, borderRadius: 16, overflow: 'hidden' },
+  card: {
+    minHeight: ALTURA_MINIMA,
+    borderRadius: 20,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+    paddingTop: 64,
+  },
   semFoto: {
     position: 'absolute',
     top: 0,
@@ -173,70 +226,62 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingTop: spacing.six,
   },
-  selo: {
+  topo: {
     position: 'absolute',
-    top: 10,
-    left: 10,
+    top: spacing.two,
+    left: spacing.two,
+    right: spacing.two,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  selo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.half,
-    paddingVertical: 3,
-    paddingLeft: 6,
-    paddingRight: 9,
+    gap: spacing.half + 2,
+    paddingVertical: 5,
+    paddingLeft: 9,
+    paddingRight: 12,
     borderRadius: 99,
   },
-  seloTexto: { color: BRANCO, fontSize: typography.fontSize.xs + 1, fontWeight: '600' },
+  seloTexto: { ...texto.rotulo },
   contador: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.half,
-    paddingVertical: 2,
-    paddingHorizontal: 7,
-    borderRadius: 6,
-    backgroundColor: 'rgba(0, 0, 0, 0.62)',
+    paddingVertical: 4,
+    paddingHorizontal: 9,
+    borderRadius: 99,
   },
-  contadorTexto: { color: BRANCO, fontSize: typography.fontSize.xs, fontWeight: '500' },
+  contadorTexto: { ...texto.rotulo },
   painel: {
-    position: 'absolute',
-    left: spacing.one,
-    right: spacing.one,
-    bottom: spacing.one,
-    borderRadius: 12,
+    margin: spacing.one,
+    borderRadius: 14,
     overflow: 'hidden',
-    paddingVertical: 10,
-    paddingLeft: spacing.two,
-    paddingRight: 10,
-    gap: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.18)',
+    paddingVertical: spacing.two,
+    paddingLeft: spacing.three,
+    paddingRight: spacing.two,
+    gap: spacing.two,
   },
-  veu: { backgroundColor: 'rgba(16, 18, 22, 0.58)' },
-  titulo: { color: BRANCO, fontSize: typography.fontSize.md - 1, fontWeight: '700' },
-  linha: { flexDirection: 'row', alignItems: 'center', gap: spacing.half },
-  sub: { flexShrink: 1, color: BRANCO_SUAVE, fontSize: typography.fontSize.xs + 1 },
-  forte: { color: BRANCO, fontWeight: '700' },
-  rodape: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, marginTop: 2 },
-  meta: { flex: 1, minWidth: 0, gap: 5 },
-  barra: {
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  barraCheia: { height: '100%', borderRadius: 2, backgroundColor: BRANCO },
+  infos: { gap: spacing.half + 2 },
+  titulo: { ...texto.tituloSecao },
+  linha: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.half + 2 },
+  sub: { ...texto.meta, flexShrink: 1 },
+  forte: { fontWeight: '700' },
+  rodape: { flexDirection: 'row', alignItems: 'center', gap: spacing.three },
+  meta: { flex: 1, minWidth: 0, gap: spacing.one },
+  barra: { height: 6, borderRadius: 3, overflow: 'hidden' },
+  barraCheia: { height: '100%', borderRadius: 3 },
   botao: {
-    minHeight: 44,
-    paddingHorizontal: spacing.three,
-    borderRadius: 22,
+    minHeight: ALVO_MINIMO,
+    minWidth: 112,
+    paddingHorizontal: spacing.three + 2,
+    borderRadius: ALVO_MINIMO / 2,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1,
+    gap: spacing.one,
+    overflow: 'hidden',
   },
-  botaoAtivo: { backgroundColor: BRANCO, borderColor: BRANCO },
-  botaoTexto: { fontSize: typography.fontSize.sm + 1, fontWeight: '700' },
+  botaoTexto: { ...texto.botao },
 });

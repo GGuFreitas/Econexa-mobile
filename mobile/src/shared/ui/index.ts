@@ -15,3 +15,4 @@ export { Header } from './Header';
 export { ScreenWrapper } from './ScreenWrapper';
 export { Tabs, Tab } from './Tabs';
 export { LogoMutira } from './LogoMutira';
+export { PilulaStatus, type PapelStatus } from './PilulaStatus';

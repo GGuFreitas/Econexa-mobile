@@ -1,91 +1,99 @@
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { BottomSheet, Button, Chip } from '@shared/ui';
+import { BottomSheet, Button } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
-import { typography } from '@shared/theme/typography';
+import { corDaCausa } from '@shared/theme/theme';
+import { texto } from '@shared/theme/typography';
 import { spacing } from '@shared/theme/spacing';
 import { getCausa } from './markerConfig';
-import { progressoMeta } from '../utils/meta';
+import { META_APOIOS, progressoMeta } from '../utils/meta';
+import { formatarDistancia } from '../utils/proximidade';
 import type { Problema } from '../types';
+
+type Icone = keyof typeof MaterialCommunityIcons.glyphMap;
 
 interface MapBottomSheetProps {
   problema: Problema | null;
   visible: boolean;
+  apoiado: boolean;
   onDismiss: () => void;
   onVerDetalhes: (id: number) => void;
-  onApoiar?: () => void;
-  apoiando?: boolean;
+  onAlternarApoio: () => void;
+  enviando?: boolean;
 }
 
+/** Prévia do problema ao tocar no marcador: o que é, onde, quanta gente apoia. */
 export function MapBottomSheet({
   problema,
   visible,
+  apoiado,
   onDismiss,
   onVerDetalhes,
-  onApoiar,
-  apoiando,
+  onAlternarApoio,
+  enviando,
 }: MapBottomSheetProps) {
   const theme = useAppTheme();
   if (!problema) return null;
 
   const causa = getCausa(problema.causa_id);
+  const cor = corDaCausa(theme, problema.causa_id);
   const progresso = progressoMeta(problema.cont_apoios);
+  const distancia =
+    problema.distancia_m != null ? formatarDistancia(Number(problema.distancia_m)) : null;
+  const linha = [causa.nome, distancia, problema.local_nome].filter(Boolean).join(' · ');
 
   return (
     <BottomSheet visible={visible} onDismiss={onDismiss}>
       <View style={styles.head}>
-        <View style={[styles.iconWrap, { backgroundColor: causa.cor }]}>
-          <MaterialCommunityIcons
-            name={causa.icone as keyof typeof MaterialCommunityIcons.glyphMap}
-            size={26}
-            color="#FFFFFF"
-          />
+        <View aria-hidden accessibilityElementsHidden importantForAccessibility="no-hide-descendants" style={[styles.iconWrap, { backgroundColor: cor.cor }]}>
+          <MaterialCommunityIcons name={causa.icone as Icone} size={26} color={cor.sobre} />
         </View>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>{problema.titulo}</Text>
-          {problema.local_nome && (
-            <Text style={[styles.local, { color: theme.colors.onSurfaceVariant }]}>
-              {problema.local_nome}
-            </Text>
-          )}
+        <View style={styles.textos}>
+          <Text accessibilityRole="header" style={[styles.titulo, { color: theme.colors.onSurface }]}>
+            {problema.titulo}
+          </Text>
+          <Text style={[styles.local, { color: theme.colors.onSurfaceVariant }]}>{linha}</Text>
         </View>
-        <Chip compact>{causa.nome}</Chip>
       </View>
 
       {problema.descricao && (
-        <Text style={[styles.desc, { color: theme.colors.onSurfaceVariant }]}>
+        <Text numberOfLines={3} style={[styles.desc, { color: theme.colors.onSurfaceVariant }]}>
           {problema.descricao}
         </Text>
       )}
 
-      <View style={styles.apoioRow}>
-        <MaterialCommunityIcons name="account-group" size={18} color={theme.colors.primary} />
-        <Text style={[styles.apoioText, { color: theme.colors.onSurface }]}>
-          {problema.cont_apoios} pessoas apoiam
-        </Text>
-      </View>
-
-      <View style={[styles.bar, { backgroundColor: theme.colors.surfaceVariant }]}>
-        <View style={[styles.barFill, { width: `${progresso}%`, backgroundColor: causa.cor }]} />
+      <View
+        accessible
+        accessibilityLabel={`${problema.cont_apoios} de ${META_APOIOS} apoios para a meta`}
+        style={styles.meta}
+      >
+        <View style={styles.apoioRow}>
+          <MaterialCommunityIcons name="account-group" size={20} color={theme.colors.secondary} />
+          <Text style={[styles.apoioText, { color: theme.colors.onSurface }]}>
+            {problema.cont_apoios} de {META_APOIOS} apoios
+          </Text>
+        </View>
+        <View style={[styles.bar, { backgroundColor: theme.colors.surfaceVariant }]}>
+          <View style={[styles.barFill, { width: `${progresso}%`, backgroundColor: theme.colors.secondary }]} />
+        </View>
       </View>
 
       <View style={styles.actions}>
-        {onApoiar && (
-          <Button
-            mode="contained"
-            icon="thumb-up"
-            loading={apoiando}
-            onPress={onApoiar}
-            style={{ flex: 1 }}
-          >
-            Apoiar
-          </Button>
-        )}
         <Button
-          mode="outlined"
-          onPress={() => onVerDetalhes(problema.id)}
-          style={{ flex: 1 }}
+          mode="contained"
+          icon={apoiado ? 'check-circle' : 'thumb-up'}
+          loading={enviando}
+          disabled={enviando}
+          onPress={onAlternarApoio}
+          buttonColor={apoiado ? theme.colors.primaryContainer : theme.colors.secondary}
+          textColor={apoiado ? theme.colors.onPrimaryContainer : theme.colors.onSecondary}
+          accessibilityHint={apoiado ? 'Toque para retirar o apoio' : undefined}
+          accessibilityState={{ selected: apoiado, busy: enviando }}
+          style={styles.acao}
         >
+          {apoiado ? 'Apoiando' : 'Apoiar'}
+        </Button>
+        <Button mode="outlined" onPress={() => onVerDetalhes(problema.id)} style={styles.acao}>
           Ver detalhes
         </Button>
       </View>
@@ -94,20 +102,17 @@ export function MapBottomSheet({
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'center', gap: spacing.two, marginBottom: spacing.two },
-  iconWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  titulo: { fontSize: typography.fontSize.lg, fontWeight: '700' },
-  local: { fontSize: typography.fontSize.sm },
-  desc: { fontSize: typography.fontSize.sm, marginBottom: spacing.three, lineHeight: 20 },
-  apoioRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.one, marginBottom: spacing.one },
-  apoioText: { fontSize: typography.fontSize.base, fontWeight: '600' },
-  bar: { height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: spacing.three },
+  head: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.two, marginBottom: spacing.two },
+  iconWrap: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  textos: { flex: 1, gap: 2 },
+  titulo: { ...texto.tituloSecao, fontSize: 19, lineHeight: 25 },
+  local: { ...texto.meta },
+  desc: { ...texto.corpo, marginBottom: spacing.three },
+  meta: { gap: spacing.one, marginBottom: spacing.four },
+  apoioRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.one },
+  apoioText: { ...texto.corpoForte },
+  bar: { height: 8, borderRadius: 4, overflow: 'hidden' },
   barFill: { height: 8, borderRadius: 4 },
   actions: { flexDirection: 'row', gap: spacing.two },
+  acao: { flex: 1 },
 });

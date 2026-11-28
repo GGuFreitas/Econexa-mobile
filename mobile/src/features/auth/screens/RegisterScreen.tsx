@@ -37,8 +37,7 @@ export default function RegisterScreen() {
   const handleVoltar = () => navigation.goBack();
 
   return (
-    <ScreenWrapper>
-      <Header title="Criar conta" onBack={handleVoltar} />
+    <ScreenWrapper cabecalho={<Header title="Criar conta" onBack={handleVoltar} />} baseSegura>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={[styles.convite, { color: theme.colors.onSurfaceVariant }]}>
           Sua conta nasce como cidadão. É ela que permite relatar problemas, apoiar e organizar

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { opcoesDeStatus, rotuloStatus } from './status';
+import { ETAPAS_STATUS, iconeStatus, opcoesDeStatus, rotuloStatus } from './status';
 
 describe('opcoesDeStatus', () => {
   it('oferece apenas as transições que o backend autorizou', () => {
@@ -23,5 +23,17 @@ describe('rotuloStatus', () => {
 
   it('devolve o valor cru para status desconhecido em vez de inventar rótulo', () => {
     expect(rotuloStatus('arquivado')).toBe('arquivado');
+  });
+});
+
+describe('trilha de status', () => {
+  it('segue o caminho até o resultado, na ordem', () => {
+    expect(ETAPAS_STATUS).toEqual(['ativo', 'em_analise', 'encaminhado', 'resolvido']);
+  });
+
+  it('dá um ícone próprio a cada etapa (status nunca só por cor)', () => {
+    const icones = ETAPAS_STATUS.map(iconeStatus);
+    expect(new Set(icones).size).toBe(ETAPAS_STATUS.length);
+    expect(iconeStatus('removido')).not.toBe(iconeStatus('ativo'));
   });
 });

@@ -38,8 +38,7 @@ export default function EsqueciSenhaScreen() {
   const handleVoltar = () => navigation.goBack();
 
   return (
-    <ScreenWrapper>
-      <Header title="Esqueci minha senha" onBack={handleVoltar} />
+    <ScreenWrapper cabecalho={<Header title="Esqueci minha senha" onBack={handleVoltar} />} baseSegura>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={[styles.explicacao, { color: theme.colors.onSurfaceVariant }]}>
           Informe o e-mail da sua conta. Vamos enviar um código de 6 números para você criar uma

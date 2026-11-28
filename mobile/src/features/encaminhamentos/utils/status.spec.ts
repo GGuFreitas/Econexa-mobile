@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   AVISO_RESPOSTA_NAO_VERIFICADA,
-  corStatusEncaminhamento,
+  iconeStatusEncaminhamento,
+  papelStatusEncaminhamento,
   opcoesDeOrgao,
   rotuloDoRelato,
   rotuloStatusEncaminhamento,
@@ -15,11 +16,10 @@ describe('status do encaminhamento', () => {
     expect(rotuloStatusEncaminhamento('falhou')).toBe('Falha no envio');
   });
 
-  it('dá uma cor distinta para cada estado', () => {
-    const cores = (['pendente', 'enviado', 'respondido', 'falhou'] as const).map(
-      corStatusEncaminhamento,
-    );
-    expect(new Set(cores).size).toBe(4);
+  it('dá um papel e um ícone distintos para cada estado', () => {
+    const estados = ['pendente', 'enviado', 'respondido', 'falhou'] as const;
+    expect(new Set(estados.map(papelStatusEncaminhamento)).size).toBe(4);
+    expect(new Set(estados.map(iconeStatusEncaminhamento)).size).toBe(4);
   });
 });
 

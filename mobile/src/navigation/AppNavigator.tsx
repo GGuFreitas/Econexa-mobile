@@ -2,6 +2,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthGuard } from '@navigation/AuthGuard';
+import { useAppTheme } from '@shared/hooks/useAppTheme';
+import { texto } from '@shared/theme/typography';
 import RegisterScreen from '@features/auth/screens/RegisterScreen';
 import EsqueciSenhaScreen from '@features/auth/screens/EsqueciSenhaScreen';
 import RedefinirSenhaScreen from '@features/auth/screens/RedefinirSenhaScreen';
@@ -40,8 +42,17 @@ type TabParamList = {
 const Tab = createBottomTabNavigator<TabParamList>();
 
 function MapaStack() {
+  const theme = useAppTheme();
   return (
-    <Tab.Navigator screenOptions={{ headerShown: false }}>
+    <Tab.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: theme.colors.primary,
+        tabBarInactiveTintColor: theme.colors.onSurfaceVariant,
+        tabBarLabelStyle: { ...texto.rotulo },
+        tabBarStyle: { backgroundColor: theme.colors.surface, borderTopColor: theme.colors.outline },
+      }}
+    >
       <Tab.Screen
         name="Mapa"
         options={{
@@ -61,7 +72,7 @@ function MapaStack() {
         component={FeedGuarded}
         options={{
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="format-list-bulleted" color={color} size={size} />
+            <MaterialCommunityIcons name="image-text" color={color} size={size} />
           ),
         }}
       />

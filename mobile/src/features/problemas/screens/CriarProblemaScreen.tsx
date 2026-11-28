@@ -18,8 +18,26 @@ export function CriarProblemaScreen() {
   const { mutateAsync, isPending } = useCriarProblema();
   const [progressoUpload, setProgressoUpload] = useState<number | null>(null);
 
-  if (erro) return <ErrorState message={erro} />;
-  if (carregando || !coordenada) return <LoadingSpinner />;
+  const cabecalho = <Header title="Relatar problema" onBack={() => navigation.goBack()} />;
+
+  if (erro) {
+    return (
+      <ScreenWrapper cabecalho={cabecalho} respiro={false} baseSegura>
+        <ErrorState
+          icon="crosshairs-off"
+          message="Precisamos da sua localização para marcar o problema no mapa."
+          dica="Permita o acesso à localização nas configurações do aparelho e abra esta tela de novo."
+        />
+      </ScreenWrapper>
+    );
+  }
+  if (carregando || !coordenada) {
+    return (
+      <ScreenWrapper cabecalho={cabecalho} respiro={false} baseSegura>
+        <LoadingSpinner mensagem="Procurando sua localização" />
+      </ScreenWrapper>
+    );
+  }
 
   const abrirExistente = (problemaId: number) => {
     Alert.alert(
@@ -66,8 +84,7 @@ export function CriarProblemaScreen() {
   };
 
   return (
-    <ScreenWrapper>
-      <Header title="Relatar problema" onBack={() => navigation.goBack()} />
+    <ScreenWrapper cabecalho={cabecalho} baseSegura>
       <ProblemForm
         coordenada={coordenada}
         submitting={isPending || progressoUpload !== null}

@@ -1,95 +1,99 @@
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import type { ReactElement } from 'react';
+import { View, Text, Pressable, type StyleProp, type ViewStyle } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
-import { typography } from '@shared/theme/typography';
+import { texto, ALVO_MINIMO } from '@shared/theme/typography';
+
+type Icone = keyof typeof MaterialCommunityIcons.glyphMap;
 
 interface TabProps {
   label: string;
-  icon: string;
+  icon?: Icone;
+  /** Contagem mostrada ao lado do rótulo (ex.: 3 mobilizações). */
   badge?: number;
 }
 
 interface TabsProps {
   value: string;
   onChange: (value: string) => void;
-  children: React.ReactElement<TabProps>[];
-  style?: any;
+  children: ReactElement<TabProps>[];
+  style?: StyleProp<ViewStyle>;
 }
 
+/** Abas de ponta a ponta, no padrão Material: sublinhado na ativa, 48 de altura. */
 export function Tabs({ value, onChange, children, style }: TabsProps) {
   const theme = useAppTheme();
   const tabs = children.map((child) => child.props);
 
   return (
     <View
+      accessibilityRole="tablist"
       style={[
-        styles.container,
-        { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.outline },
+        {
+          flexDirection: 'row',
+          borderBottomWidth: 1,
+          backgroundColor: theme.colors.surface,
+          borderBottomColor: theme.colors.outline,
+        },
         style,
       ]}
     >
-      {tabs.map((tab, index) => (
-        <TouchableOpacity
-          key={index}
-          style={[
-            styles.tab,
-            value === tab.label ? styles.tabActive : {},
-            { borderBottomColor: value === tab.label ? theme.colors.primary : 'transparent' },
-          ]}
-          onPress={() => onChange(tab.label)}
-        >
-          <View style={styles.tabContent}>
-            <Text style={[
-              styles.tabLabel,
-              value === tab.label ? styles.tabLabelActive : {},
-              { color: value === tab.label ? theme.colors.primary : theme.colors.textSecondary },
-            ]}>
+      {tabs.map((tab) => {
+        const ativa = value === tab.label;
+        const cor = ativa ? theme.colors.primary : theme.colors.onSurfaceVariant;
+        const temBadge = tab.badge != null && tab.badge > 0;
+        const rotuloLeitor = temBadge ? `${tab.label}, ${tab.badge}` : tab.label;
+
+        return (
+          <Pressable
+            key={tab.label}
+            onPress={() => onChange(tab.label)}
+            accessibilityRole="tab"
+            accessibilityLabel={rotuloLeitor}
+            accessibilityState={{ selected: ativa }}
+            android_ripple={{ color: theme.colors.primaryContainer }}
+            style={{
+              flex: 1,
+              minHeight: ALVO_MINIMO,
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexDirection: 'row',
+              gap: spacing.half + 2,
+              paddingHorizontal: spacing.one,
+              borderBottomWidth: 3,
+              borderBottomColor: ativa ? theme.colors.primary : 'transparent',
+            }}
+          >
+            {tab.icon && <MaterialCommunityIcons name={tab.icon} size={18} color={cor} />}
+            <Text numberOfLines={1} style={{ ...texto.rotulo, fontSize: 14, color: cor, fontWeight: ativa ? '700' : '600' }}>
               {tab.label}
             </Text>
-            {tab.badge && tab.badge > 0 && (
-              <View style={[styles.badge, { backgroundColor: theme.colors.error }]}>
-                <Text style={styles.badgeText}>{tab.badge > 99 ? '99+' : tab.badge}</Text>
+            {temBadge && (
+              <View
+                style={{
+                  minWidth: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  paddingHorizontal: 5,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: ativa ? theme.colors.primary : theme.colors.surfaceVariant,
+                }}
+              >
+                <Text style={{ ...texto.rotulo, fontSize: 13, lineHeight: 16, color: ativa ? theme.colors.onPrimary : theme.colors.onSurface }}>
+                  {tab.badge! > 99 ? '99+' : tab.badge}
+                </Text>
               </View>
             )}
-          </View>
-        </TouchableOpacity>
-      ))}
+          </Pressable>
+        );
+      })}
     </View>
   );
 }
 
-interface TabProps2 {
-  label: string;
-  icon: string;
-  badge?: number;
-}
-
-export function Tab({ label, icon, badge }: TabProps2) {
+/** Só declara a aba; quem desenha é `Tabs`. */
+export function Tab(_props: TabProps) {
   return null;
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flexDirection: 'row',
-    borderBottomWidth: 1,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tabActive: {},
-  tabContent: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  tabLabel: { fontSize: 14, fontWeight: '600' },
-  tabLabelActive: { fontWeight: '700' },
-  badge: {
-    minWidth: 18,
-    height: 18,
-    borderRadius: 9,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
-});

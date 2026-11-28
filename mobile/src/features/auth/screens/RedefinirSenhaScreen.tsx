@@ -43,8 +43,7 @@ export default function RedefinirSenhaScreen() {
   const handleVoltar = () => navigation.goBack();
 
   return (
-    <ScreenWrapper>
-      <Header title="Redefinir senha" onBack={handleVoltar} />
+    <ScreenWrapper cabecalho={<Header title="Redefinir senha" onBack={handleVoltar} />} baseSegura>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={[styles.explicacao, { color: theme.colors.onSurfaceVariant }]}>
           Se existir uma conta com {params.email}, enviamos para lá um código de 6 números. Ele

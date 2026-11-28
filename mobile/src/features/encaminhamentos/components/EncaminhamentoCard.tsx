@@ -1,12 +1,13 @@
 import { View, Text, StyleSheet } from 'react-native';
-import { Button, Card, Chip } from '@shared/ui';
+import { Button, Card, PilulaStatus } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
-import { typography } from '@shared/theme/typography';
+import { texto } from '@shared/theme/typography';
 import { formatarDataRelativa } from '@shared/utils/dataRelativa';
 import {
   AVISO_RESPOSTA_NAO_VERIFICADA,
-  corStatusEncaminhamento,
+  iconeStatusEncaminhamento,
+  papelStatusEncaminhamento,
   rotuloDoRelato,
   rotuloStatusEncaminhamento,
 } from '../utils/status';
@@ -26,7 +27,6 @@ export function EncaminhamentoCard({
   reenviando,
 }: EncaminhamentoCardProps) {
   const theme = useAppTheme();
-  const cor = corStatusEncaminhamento(encaminhamento.status);
   const quando = formatarDataRelativa(encaminhamento.criado_em);
 
   return (
@@ -35,9 +35,11 @@ export function EncaminhamentoCard({
         <Text style={[styles.orgao, { color: theme.colors.onSurface }]} numberOfLines={2}>
           {encaminhamento.orgao.nome}
         </Text>
-        <Chip compact mode="outlined" style={{ backgroundColor: cor, borderColor: cor }}>
-          <Text style={styles.chipTexto}>{rotuloStatusEncaminhamento(encaminhamento.status)}</Text>
-        </Chip>
+        <PilulaStatus
+          rotulo={rotuloStatusEncaminhamento(encaminhamento.status)}
+          papel={papelStatusEncaminhamento(encaminhamento.status)}
+          icone={iconeStatusEncaminhamento(encaminhamento.status)}
+        />
       </View>
 
       <Text style={[styles.meta, { color: theme.colors.textSecondary }]}>
@@ -65,7 +67,7 @@ export function EncaminhamentoCard({
             </Text>
           )}
           {!encaminhamento.resposta_verificada && (
-            <Text style={[styles.aviso, { color: theme.colors.textTertiary }]}>
+            <Text style={[styles.aviso, { color: theme.colors.textSecondary }]}>
               {AVISO_RESPOSTA_NAO_VERIFICADA}
             </Text>
           )}
@@ -102,13 +104,12 @@ export function EncaminhamentoCard({
 const styles = StyleSheet.create({
   card: { padding: spacing.three, gap: spacing.two },
   header: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  orgao: { flex: 1, fontSize: typography.fontSize.base, fontWeight: '700' },
-  chipTexto: { color: '#FFFFFF', fontWeight: '700' },
-  meta: { fontSize: typography.fontSize.xs },
-  falha: { fontSize: typography.fontSize.xs },
+  orgao: { ...texto.corpoForte, flex: 1 },
+  meta: { ...texto.meta },
+  falha: { ...texto.meta },
   resposta: { gap: 2 },
-  rotulo: { fontSize: typography.fontSize.xs, fontWeight: '700' },
-  texto: { fontSize: typography.fontSize.sm, lineHeight: 20 },
-  aviso: { fontSize: typography.fontSize.xs, fontStyle: 'italic' },
+  rotulo: { ...texto.rotulo },
+  texto: { ...texto.corpo },
+  aviso: { ...texto.meta, fontStyle: 'italic' },
   acoes: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.two },
 });

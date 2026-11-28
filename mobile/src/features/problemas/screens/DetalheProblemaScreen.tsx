@@ -1,40 +1,34 @@
 import { useState } from 'react';
 import { useNavigation, useRoute } from '@react-navigation/native';
-import { View, Text, ScrollView, StyleSheet } from 'react-native';
+import type { NavigationProp } from '@react-navigation/native';
+import { View, Text, ScrollView, StyleSheet, Pressable } from 'react-native';
+import { Menu, Snackbar } from 'react-native-paper';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import {
-  Header,
-  ScreenWrapper,
-  Card,
-  Button,
-  Chip,
-  Modal,
-  Select,
-  LoadingSpinner,
-  ErrorState,
-  Tabs,
-  Tab,
-} from '@shared/ui';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Header, ScreenWrapper, Button, LoadingSpinner, ErrorState, Tabs, Tab } from '@shared/ui';
 import { useAppTheme } from '@shared/hooks/useAppTheme';
 import { spacing } from '@shared/theme/spacing';
-import { typography } from '@shared/theme/typography';
+import { texto, ALVO_MINIMO } from '@shared/theme/typography';
+import { comAlfa } from '@shared/theme/alfa';
+import { ApiError } from '@services/ApiError';
+import type { RootStackParamList } from '@navigation/AppNavigator';
+import { EncaminhamentosList } from '@features/encaminhamentos/components/EncaminhamentosList';
+import { EncaminharProblemaModal } from '@features/encaminhamentos/components/EncaminharProblemaModal';
+import { MobilizacoesListScreen } from '@features/mobilizations/screens/MobilizacoesListScreen';
+import { useMobilizacoes } from '@features/mobilizations/hooks/useMobilizacoes';
 import { useProblema } from '../hooks/useProblema';
 import { useApoio } from '../hooks/useApoio';
-import { useDenuncia } from '../hooks/useDenuncia';
-import { getCausa } from '../map/markerConfig';
+import { useImagensProblema } from '../hooks/useImagensProblema';
 import { AtividadeProblema } from '../components/AtividadeProblema';
 import { AlterarStatusModal } from '../components/AlterarStatusModal';
 import { EvidenciasProblema } from '../components/EvidenciasProblema';
-import { rotuloStatus } from '../utils/status';
-import { EncaminhamentosList } from '@features/encaminhamentos/components/EncaminhamentosList';
-import { EncaminharProblemaModal } from '@features/encaminhamentos/components/EncaminharProblemaModal';
-import type { DenunciaMotivo } from '../types';
-import { MobilizacoesListScreen } from '@features/mobilizations/screens/MobilizacoesListScreen';
-import type { NavigationProp } from '@react-navigation/native';
-import type { RootStackParamList } from '@navigation/AppNavigator';
+import { CabecaProblema } from '../components/CabecaProblema';
+import { TrilhaStatus } from '../components/TrilhaStatus';
+import { DenunciaModal } from '../components/DenunciaModal';
+import { META_APOIOS, progressoMeta } from '../utils/meta';
 
 const TAB_DETALHE = 'Detalhe';
-const TAB_MOBILIZACOES = 'Mobilizações';
+const TAB_MUTIROES = 'Mutirões';
 const TAB_ATIVIDADE = 'Atividade';
 
 export function DetalheProblemaScreen() {
@@ -42,120 +36,184 @@ export function DetalheProblemaScreen() {
   const route = useRoute();
   const { id } = route.params as { id: number };
   const theme = useAppTheme();
+  const insets = useSafeAreaInsets();
 
-  const { data: problema, isLoading, isError } = useProblema(id);
+  const { data: problema, isLoading, isError, error, refetch } = useProblema(id);
   const { apoiar, desapoiar } = useApoio(id);
-  const denuncia = useDenuncia(id);
+  const imagens = useImagensProblema(id);
+  const mobilizacoes = useMobilizacoes({ problemaId: id, limite: 20 });
+  const [menuAberto, setMenuAberto] = useState(false);
   const [denunciaAberta, setDenunciaAberta] = useState(false);
   const [encaminharAberto, setEncaminharAberto] = useState(false);
   const [statusAberto, setStatusAberto] = useState(false);
-  const [motivo, setMotivo] = useState<string>('spam');
+  const [aviso, setAviso] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState(TAB_DETALHE);
 
-  if (isLoading) return <LoadingSpinner />;
-  if (isError || !problema) return <ErrorState message="Problema não encontrado." />;
+  const voltar = () => navigation.goBack();
+  const cabecalhoSimples = <Header title="Problema" onBack={voltar} />;
 
-  const causa = getCausa(problema.causa_id);
+  if (isLoading) {
+    return (
+      <ScreenWrapper cabecalho={cabecalhoSimples} respiro={false}>
+        <LoadingSpinner mensagem="Carregando o problema" />
+      </ScreenWrapper>
+    );
+  }
+
+  if (isError || !problema) {
+    const naoExiste = error instanceof ApiError && error.status === 404;
+    return (
+      <ScreenWrapper cabecalho={cabecalhoSimples} respiro={false}>
+        {naoExiste ? (
+          <ErrorState
+            icon="map-marker-question-outline"
+            message="Este problema não existe mais."
+            dica="Ele pode ter sido removido pela moderação."
+          />
+        ) : (
+          <ErrorState message="Não deu para abrir o problema." dica="Confira sua conexão e tente de novo." onRetry={() => refetch()} />
+        )}
+      </ScreenWrapper>
+    );
+  }
+
   const transicoes = problema.transicoes_permitidas ?? [];
+  const capaUrl = imagens.data?.find((i) => i.principal)?.url ?? imagens.data?.[0]?.url ?? null;
+  const totalMutiroes = mobilizacoes.data?.pages.flat().length ?? 0;
+  const enviandoApoio = apoiar.isPending || desapoiar.isPending;
+  const alternarApoio = () => (problema.apoiado ? desapoiar.mutate() : apoiar.mutate());
+  const organizarMutirao = () => navigation.navigate('CriarMobilizacao', { problemaId: problema.id });
+  const abrirDenuncia = () => {
+    setMenuAberto(false);
+    setDenunciaAberta(true);
+  };
+  const abrirStatus = () => {
+    setMenuAberto(false);
+    setStatusAberto(true);
+  };
+  const toqueMenu = comAlfa(theme.colors.onPrimary, 0.16);
+
+  const menu = (
+    <Menu
+      visible={menuAberto}
+      onDismiss={() => setMenuAberto(false)}
+      anchor={
+        <Pressable
+          onPress={() => setMenuAberto(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Mais opções"
+          style={({ pressed }) => [styles.botaoMenu, { backgroundColor: pressed ? toqueMenu : 'transparent' }]}
+        >
+          <MaterialCommunityIcons name="dots-vertical" size={24} color={theme.colors.onPrimary} />
+        </Pressable>
+      }
+      contentStyle={{ backgroundColor: theme.colors.surface }}
+    >
+      {transicoes.length > 0 && <Menu.Item leadingIcon="swap-horizontal" title="Alterar status" onPress={abrirStatus} />}
+      <Menu.Item leadingIcon="flag-outline" title="Denunciar" onPress={abrirDenuncia} />
+    </Menu>
+  );
 
   return (
-    <ScreenWrapper>
-      <Header title="Detalhe" onBack={() => navigation.goBack()} />
-      <Tabs value={activeTab} onChange={setActiveTab} style={styles.tabs}>
-        <Tab label={TAB_DETALHE} icon="information-outline" />
-        <Tab label={TAB_MOBILIZACOES} icon="account-group" />
-        <Tab label={TAB_ATIVIDADE} icon="timeline-clock-outline" />
+    <ScreenWrapper cabecalho={<Header title="Problema" onBack={voltar} acoes={menu} />} respiro={false}>
+      <Tabs value={activeTab} onChange={setActiveTab}>
+        <Tab label={TAB_DETALHE} />
+        <Tab label={TAB_MUTIROES} badge={totalMutiroes} />
+        <Tab label={TAB_ATIVIDADE} />
       </Tabs>
 
-      {activeTab === TAB_DETALHE && (
-        <ScrollView contentContainerStyle={styles.container}>
-          <View style={[styles.iconWrap, { backgroundColor: causa.cor }]}>
-            <MaterialCommunityIcons
-              name={causa.icone as keyof typeof MaterialCommunityIcons.glyphMap}
-              size={32}
-              color="#FFFFFF"
-            />
-          </View>
-          <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>{problema.titulo}</Text>
-          <Chip compact>{causa.nome}</Chip>
-          {problema.local_nome && (
-            <Text style={[styles.local, { color: theme.colors.onSurfaceVariant }]}>
-              {problema.local_nome}
-            </Text>
-          )}
+      <View style={styles.corpo}>
+        {activeTab === TAB_DETALHE && (
+          <ScrollView contentContainerStyle={styles.rolagem}>
+            <CabecaProblema problema={problema} capaUrl={capaUrl} />
 
-          <Card style={styles.card}>
-            <Text style={[styles.statusLabel, { color: theme.colors.onSurfaceVariant }]}>Status</Text>
-            <Text style={[styles.status, { color: causa.cor }]}>
-              {rotuloStatus(problema.status)}
-            </Text>
-            <View style={styles.apoioRow}>
-              <MaterialCommunityIcons name="account-group" size={20} color={theme.colors.primary} />
-              <Text style={[styles.apoio, { color: theme.colors.onSurface }]}>
-                {problema.cont_apoios} apoios
-              </Text>
-            </View>
-            {transicoes.length > 0 && (
-              <Button
-                mode="outlined"
-                icon="swap-horizontal"
-                onPress={() => setStatusAberto(true)}
-                style={styles.acaoStatus}
+            <View style={styles.secoes}>
+              <View style={styles.secao}>
+                <Text accessibilityRole="header" style={[styles.tituloSecao, { color: theme.colors.onSurface }]}>
+                  Andamento
+                </Text>
+                <TrilhaStatus status={problema.status} />
+              </View>
+
+              <View
+                accessible
+                accessibilityLabel={`${problema.cont_apoios} de ${META_APOIOS} apoios para a meta`}
+                style={[styles.meta, { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline }]}
               >
-                Alterar status
-              </Button>
-            )}
-          </Card>
+                <View style={styles.metaLinha}>
+                  <MaterialCommunityIcons name="account-group" size={22} color={theme.colors.secondary} />
+                  <Text style={[styles.metaTexto, { color: theme.colors.onSurface }]}>
+                    <Text style={styles.forte}>{problema.cont_apoios}</Text> de {META_APOIOS} apoios
+                  </Text>
+                </View>
+                <View style={[styles.barra, { backgroundColor: theme.colors.surfaceVariant }]}>
+                  <View
+                    style={[
+                      styles.barraCheia,
+                      { width: `${progressoMeta(problema.cont_apoios)}%`, backgroundColor: theme.colors.secondary },
+                    ]}
+                  />
+                </View>
+              </View>
 
-          {problema.descricao && (
-            <Text style={[styles.desc, { color: theme.colors.onSurfaceVariant }]}>
-              {problema.descricao}
-            </Text>
-          )}
+              {problema.descricao && (
+                <Text style={[styles.desc, { color: theme.colors.onSurface }]}>{problema.descricao}</Text>
+              )}
 
-          <EvidenciasProblema
+              <EvidenciasProblema problemaId={problema.id} podeAdicionar={problema.pode_adicionar_evidencia} />
+
+              <View style={styles.secao}>
+                <EncaminhamentosList problemaId={problema.id} />
+                {problema.pode_encaminhar && (
+                  <Button mode="outlined" icon="send-outline" onPress={() => setEncaminharAberto(true)} style={styles.alinhado}>
+                    Encaminhar a um órgão
+                  </Button>
+                )}
+              </View>
+            </View>
+          </ScrollView>
+        )}
+
+        {activeTab === TAB_MUTIROES && (
+          <MobilizacoesListScreen
             problemaId={problema.id}
-            podeAdicionar={problema.pode_adicionar_evidencia}
+            onPress={(mobilizacaoId) => navigation.navigate('MobilizacaoDetail', { id: mobilizacaoId })}
+            onCriar={organizarMutirao}
           />
+        )}
 
-          <View style={styles.actions}>
-            <Button
-              mode={problema.apoiado ? 'outlined' : 'contained'}
-              icon={problema.apoiado ? 'check-circle' : 'thumb-up'}
-              loading={apoiar.isPending || desapoiar.isPending}
-              disabled={apoiar.isPending || desapoiar.isPending}
-              onPress={() => (problema.apoiado ? desapoiar.mutate() : apoiar.mutate())}
-              buttonColor={problema.apoiado ? undefined : theme.colors.secondary}
-              textColor={problema.apoiado ? theme.colors.primary : theme.colors.onSecondary}
-              accessibilityHint={problema.apoiado ? 'Toque para retirar o apoio' : undefined}
-              style={{ flex: 1 }}
-            >
-              {problema.apoiado ? 'Apoiando' : 'Apoiar'}
-            </Button>
-            <Button mode="outlined" icon="flag" onPress={() => setDenunciaAberta(true)}>
-              Denunciar
-            </Button>
-          </View>
+        {activeTab === TAB_ATIVIDADE && <AtividadeProblema problemaId={problema.id} />}
+      </View>
 
-          {problema.pode_encaminhar && (
-            <Button mode="contained" icon="send" onPress={() => setEncaminharAberto(true)}>
-              Encaminhar problema
-            </Button>
-          )}
-
-          <EncaminhamentosList problemaId={problema.id} />
-        </ScrollView>
-      )}
-
-      {activeTab === TAB_MOBILIZACOES && (
-        <MobilizacoesListScreen
-          problemaId={problema.id}
-          onPress={(mobilizacaoId) => navigation.navigate('MobilizacaoDetail', { id: mobilizacaoId })}
-          onCriar={() => navigation.navigate('CriarMobilizacao', { problemaId: problema.id })}
-        />
-      )}
-
-      {activeTab === TAB_ATIVIDADE && <AtividadeProblema problemaId={problema.id} />}
+      {/* Barra fixa: a ação principal sempre na zona do polegar. */}
+      <View
+        style={[
+          styles.barraAcoes,
+          {
+            paddingBottom: insets.bottom + spacing.two,
+            backgroundColor: theme.colors.surface,
+            borderTopColor: theme.colors.outline,
+          },
+        ]}
+      >
+        <Button
+          mode="contained"
+          icon={problema.apoiado ? 'check-circle' : 'thumb-up'}
+          loading={enviandoApoio}
+          disabled={enviandoApoio}
+          onPress={alternarApoio}
+          buttonColor={problema.apoiado ? theme.colors.primaryContainer : theme.colors.secondary}
+          textColor={problema.apoiado ? theme.colors.onPrimaryContainer : theme.colors.onSecondary}
+          accessibilityHint={problema.apoiado ? 'Toque para retirar o apoio' : undefined}
+          accessibilityState={{ selected: problema.apoiado, busy: enviandoApoio }}
+          style={styles.acaoPrincipal}
+        >
+          {problema.apoiado ? 'Apoiando' : 'Apoiar'}
+        </Button>
+        <Button mode="outlined" icon="account-group-outline" onPress={organizarMutirao} style={styles.acaoPrincipal}>
+          Mutirão
+        </Button>
+      </View>
 
       <EncaminharProblemaModal
         problemaId={problema.id}
@@ -170,57 +228,47 @@ export function DetalheProblemaScreen() {
         onFechar={() => setStatusAberto(false)}
       />
 
-      <Modal visible={denunciaAberta} onDismiss={() => setDenunciaAberta(false)}>
-        <View style={styles.modal}>
-          <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>Denunciar</Text>
-          <Select
-            label="Motivo"
-            value={motivo}
-            onValueChange={(v) => setMotivo(String(v))}
-            options={[
-              { label: 'Spam', value: 'spam' },
-              { label: 'Conteúdo inadequado', value: 'conteudo_inadequado' },
-              { label: 'Duplicado', value: 'duplicado' },
-              { label: 'Outro', value: 'outro' },
-            ]}
-          />
-          <Button
-            mode="contained"
-            loading={denuncia.isPending}
-            onPress={() =>
-              denuncia.mutate(motivo as DenunciaMotivo, {
-                onSuccess: () => setDenunciaAberta(false),
-              })
-            }
-          >
-            Enviar denúncia
-          </Button>
-        </View>
-      </Modal>
+      <DenunciaModal
+        problemaId={problema.id}
+        visivel={denunciaAberta}
+        onFechar={() => setDenunciaAberta(false)}
+        onEnviada={() => setAviso('Denúncia enviada. Obrigado por avisar.')}
+      />
+
+      <Snackbar visible={aviso !== null} onDismiss={() => setAviso(null)} duration={4000} wrapperStyle={{ bottom: 88 }}>
+        {aviso}
+      </Snackbar>
     </ScreenWrapper>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { padding: spacing.four, gap: spacing.three },
-  iconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+  corpo: { flex: 1 },
+  rolagem: { paddingBottom: spacing.five },
+  secoes: { paddingHorizontal: spacing.three, paddingTop: spacing.four, gap: spacing.four },
+  secao: { gap: spacing.three },
+  tituloSecao: { ...texto.tituloSecao },
+  meta: { borderRadius: 16, borderWidth: 1, padding: spacing.three, gap: spacing.two },
+  metaLinha: { flexDirection: 'row', alignItems: 'center', gap: spacing.one },
+  metaTexto: { ...texto.corpo, fontSize: 16 },
+  forte: { fontWeight: '800' },
+  barra: { height: 8, borderRadius: 4, overflow: 'hidden' },
+  barraCheia: { height: 8, borderRadius: 4 },
+  desc: { ...texto.corpo, fontSize: 16, lineHeight: 24 },
+  alinhado: { alignSelf: 'flex-start' },
+  barraAcoes: {
+    flexDirection: 'row',
+    gap: spacing.two,
+    paddingHorizontal: spacing.three,
+    paddingTop: spacing.two,
+    borderTopWidth: 1,
+  },
+  acaoPrincipal: { flex: 1 },
+  botaoMenu: {
+    width: ALVO_MINIMO,
+    height: ALVO_MINIMO,
+    borderRadius: ALVO_MINIMO / 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  titulo: { fontSize: typography.fontSize.xl, fontWeight: '700' },
-  local: { fontSize: typography.fontSize.sm },
-  card: { gap: spacing.two, padding: spacing.three },
-  statusLabel: { fontSize: typography.fontSize.sm },
-  status: { fontSize: typography.fontSize.lg, fontWeight: '700' },
-  apoioRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.two },
-  apoio: { fontSize: typography.fontSize.base, fontWeight: '600' },
-  acaoStatus: { alignSelf: 'flex-start' },
-  desc: { fontSize: typography.fontSize.sm, lineHeight: 22 },
-  actions: { flexDirection: 'row', gap: spacing.two },
-  modal: { padding: spacing.four, gap: spacing.three },
-  modalTitle: { fontSize: typography.fontSize.lg, fontWeight: '700' },
-  tabs: { marginBottom: spacing.three },
 });

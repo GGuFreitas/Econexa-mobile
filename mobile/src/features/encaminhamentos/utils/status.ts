@@ -1,3 +1,4 @@
+import type { PapelStatus } from '@shared/ui/PilulaStatus';
 import type { EncaminhamentoStatus } from '../types';
 
 export const statusLabels: Record<EncaminhamentoStatus, string> = {
@@ -7,19 +8,31 @@ export const statusLabels: Record<EncaminhamentoStatus, string> = {
   falhou: 'Falha no envio',
 };
 
-export const statusColors: Record<EncaminhamentoStatus, string> = {
-  pendente: '#f59e0b',
-  enviado: '#3b82f6',
-  respondido: '#10b981',
-  falhou: '#ef4444',
+const PAPEL: Record<EncaminhamentoStatus, PapelStatus> = {
+  pendente: 'atencao',
+  enviado: 'andamento',
+  respondido: 'sucesso',
+  falhou: 'erro',
+};
+
+const ICONE: Record<EncaminhamentoStatus, string> = {
+  pendente: 'clock-outline',
+  enviado: 'send-outline',
+  respondido: 'check-circle-outline',
+  falhou: 'alert-circle-outline',
 };
 
 export function rotuloStatusEncaminhamento(status: EncaminhamentoStatus): string {
   return statusLabels[status] ?? status;
 }
 
-export function corStatusEncaminhamento(status: EncaminhamentoStatus): string {
-  return statusColors[status] ?? '#6b7280';
+/** Papel semântico do status (a cor vem do tema, nunca fixa). */
+export function papelStatusEncaminhamento(status: EncaminhamentoStatus): PapelStatus {
+  return PAPEL[status] ?? 'neutro';
+}
+
+export function iconeStatusEncaminhamento(status: EncaminhamentoStatus): string {
+  return ICONE[status] ?? 'help-circle-outline';
 }
 
 export function opcoesDeOrgao(

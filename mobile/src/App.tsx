@@ -1,4 +1,6 @@
 import { useEffect } from 'react';
+import { useColorScheme } from 'react-native';
+import { resolverTema } from '@store/themeSlice';
 import { Provider as ReduxProvider } from 'react-redux';
 import { Provider as PaperProvider } from 'react-native-paper';
 import { StatusBar } from 'expo-status-bar';
@@ -16,7 +18,9 @@ import AppNavigator from '@navigation/AppNavigator';
 import { SessaoGuard } from '@navigation/SessaoGuard';
 
 function ThemedApp() {
-  const mode = useAppSelector((state) => state.theme.mode);
+  const preferencia = useAppSelector((state) => state.theme.mode);
+  const doSistema = useColorScheme();
+  const mode = resolverTema(preferencia, doSistema);
   const paperTheme = getAppTheme(mode);
   const navigationTheme = getNavigationTheme(paperTheme, mode === 'dark');
   useFonts({ Cardo_700Bold });

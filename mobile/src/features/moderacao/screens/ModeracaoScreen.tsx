@@ -49,8 +49,7 @@ export default function ModeracaoScreen() {
   }
 
   return (
-    <ScreenWrapper>
-      <Header title="Moderação" onBack={handleVoltar} />
+    <ScreenWrapper cabecalho={<Header title="Moderação" onBack={handleVoltar} />} baseSegura>
       {conteudo}
     </ScreenWrapper>
   );

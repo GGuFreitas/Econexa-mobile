@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import type { ProblemPriority } from './markerConfig';
 
+/** Tamanho do marcador segue a prioridade da categoria. */
 export const markerSizeByPriority: Record<ProblemPriority, number> = {
   critical: 46,
   high: 40,
@@ -8,36 +9,20 @@ export const markerSizeByPriority: Record<ProblemPriority, number> = {
   low: 28,
 };
 
-export const markerRingWidth = 3;
-
-export const mapStateColors = {
-  resolvido: '#2E7D32',
-  emAnalise: '#F57F17',
-  encaminhado: '#0277BD',
-  ativo: '#9AA5B1',
-  mobilizando: '#2E7D32',
-};
-
-export const mapAnimation = {
-  spring: { damping: 18, stiffness: 140 },
-  ringPulseDuration: 1600,
-};
-
+/**
+ * Sombra dos elementos que flutuam sobre o mapa. Sem cor própria: no iOS herda
+ * `shadowColor` do tema onde é aplicada (ver `sombraDoMapa`); no Android usa elevação.
+ */
 export const mapShadow = Platform.select({
   ios: {
-    shadowColor: '#1E1410',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.18,
     shadowRadius: 10,
   },
   android: { elevation: 6 },
-  default: {},
+  default: {
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+  },
 });
-
-export const mapZIndex = {
-  marker: 10,
-  cluster: 20,
-  bottomSheet: 100,
-  fab: 90,
-  filterBar: 80,
-};

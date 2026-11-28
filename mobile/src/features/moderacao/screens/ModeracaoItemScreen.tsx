@@ -103,8 +103,7 @@ export default function ModeracaoItemScreen() {
   const resumo = `${item.total_denuncias} ${item.total_denuncias === 1 ? 'denúncia' : 'denúncias'} · por ${item.autor_nome}`;
 
   return (
-    <ScreenWrapper>
-      <Header title="Denúncia" onBack={handleVoltar} />
+    <ScreenWrapper cabecalho={<Header title="Denúncia" onBack={handleVoltar} />} baseSegura>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Card style={styles.card}>
           <Text style={[styles.titulo, { color: theme.colors.onSurface }]}>{item.titulo}</Text>

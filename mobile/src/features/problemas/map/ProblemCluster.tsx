@@ -1,9 +1,5 @@
-import { View, Text, StyleSheet } from 'react-native';
 import { Marker } from 'react-native-maps';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useAppTheme } from '@shared/hooks/useAppTheme';
-import { getCausa } from './markerConfig';
-import { mapShadow } from './mapTheme';
+import { ClusterVisual } from './ClusterVisual';
 import type { Problema } from '../types';
 
 interface ProblemClusterProps {
@@ -12,17 +8,6 @@ interface ProblemClusterProps {
 }
 
 export function ProblemCluster({ pontos, onPress }: ProblemClusterProps) {
-  const theme = useAppTheme();
-  const total = pontos.length;
-  const contagem = new Map<number, number>();
-  for (const p of pontos) {
-    contagem.set(p.causa_id, (contagem.get(p.causa_id) ?? 0) + 1);
-  }
-  const top = [...contagem.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([causaId, qtd]) => ({ causa: getCausa(causaId), qtd }));
-
   const primeira = pontos[0];
 
   return (
@@ -31,55 +16,7 @@ export function ProblemCluster({ pontos, onPress }: ProblemClusterProps) {
       onPress={onPress}
       tracksViewChanges={false}
     >
-      <View
-        style={[
-          styles.card,
-          mapShadow,
-          { backgroundColor: theme.colors.surface, borderColor: theme.colors.outline },
-        ]}
-      >
-        <Text style={[styles.total, { color: theme.colors.onSurface }]}>{total}</Text>
-        <View style={styles.rows}>
-          {top.map(({ causa, qtd }) => (
-            <View key={causa.id} style={styles.row}>
-              <MaterialCommunityIcons
-                name={causa.icone as keyof typeof MaterialCommunityIcons.glyphMap}
-                size={14}
-                color={causa.cor}
-              />
-              <Text style={[styles.qtd, { color: causa.cor }]}>{qtd}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
+      <ClusterVisual pontos={pontos} />
     </Marker>
   );
 }
-
-const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: 14,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderWidth: 1,
-  },
-  total: {
-    fontSize: 20,
-    fontWeight: '800',
-    marginRight: 10,
-  },
-  rows: {
-    gap: 4,
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  qtd: {
-    fontSize: 13,
-    fontWeight: '700',
-  },
-});
