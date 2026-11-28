@@ -820,6 +820,11 @@ Quitadas no M9.5: **apoio sem evento** (agora `APOIO_CRIADO`/`APOIO_REMOVIDO`) e
 Quitada no PR-A: **`vincularProblema` mudava status sem emitir evento e sem checar
 dono** — o domínio `eventos` inteiro saiu, então o caminho não existe mais.
 
+Quitadas depois do PR-B2 (#25 a #43): **sessão não persistida** (SecureStore + refresh
+token), **sem recuperação de senha e sem verificação de e-mail**, **sem interface de
+moderação** e **`ON DELETE CASCADE` inflando `cont_apoios`** — a exclusão de conta
+anonimiza a linha de `users` em vez de apagá-la, então o cascade nunca dispara.
+
 - **Histórico de apoio anterior ao M9.5 é parcial e não tem conserto.** O backfill
   reconstruiu `APOIO_CRIADO` a partir de `problema_apoios.criado_em`, então cobre só
   quem **ainda apoia**. Apoios que já tinham sido retirados sumiram: `DELETE` físico, PK
@@ -843,28 +848,12 @@ dono** — o domínio `eventos` inteiro saiu, então o caminho não existe mais.
 - `shared/cache.ts` e `shared/ratelimit.ts` seguem em memória: com mais de uma
   instância do backend, o rate-limit é por processo e o `deletePorPrefixo` novo só
   limpa o cache **daquele** processo.
-- **Não existe interface de moderação.** `admin` só nasce por promoção manual no banco
-  (`npm run admin:promover`), e o mobile não tem tela para as ações que só ele pode
-  fazer (remover problema, ler a lista de denunciantes). Enquanto ninguém for promovido,
-  essas capacidades existem no servidor e não são exercidas por ninguém.
 - **`specialist` hoje não faz nada.** Depois do PR-A ele tem exatamente as mesmas
   permissões de `citizen`; o que sobra é o rótulo no perfil. Dar sentido ao papel
   depende de verificação por certificado, que segue fora de escopo.
 - **A suíte de integração exige Docker na máquina.** Não é uma dívida a quitar, é o
   preço de testar PostGIS de verdade — mas quem não tem Docker no ambiente roda só
   `npm run test`.
-- **`problema_apoios` tem `ON DELETE CASCADE` para `users` e ninguém decrementa
-  `problemas.cont_apoios`.** Apagar um usuário levaria embora as linhas de apoio dele sem
-  mexer nos contadores, que ficariam permanentemente inflados. Hoje é **latente**: não
-  existe exclusão de conta em lugar nenhum — nem rota, nem tela, nem script. Registrado
-  aqui de propósito: **quem implementar exclusão de conta precisa reconciliar os
-  contadores no mesmo caminho** (o `UPDATE ... FROM (SELECT COUNT ...)` da migration
-  `011` é o modelo pronto). Exclusão de conta e LGPD seguem fora de escopo.
-- **Sessão não é persistida.** `authSlice` vive só em memória: fechar o app desloga.
-  `redux-persist`/`SecureStore` ficaram deliberadamente fora do PR-B2.
-- **Não há refresh token, recuperação de senha nem verificação de e-mail.** O JWT dura 7
-  dias e, quando expira, o interceptor derruba a sessão e o `AuthGuard` mostra o login —
-  que é o comportamento correto, mas não é renovação. Tudo isso segue fora de escopo.
 - **`mobile/tsconfig.json` tem `strict: false`.** Além de deixar passar componente sem
   tipo (o que o PR-B2 corrigiu caso a caso), isso quebra a inferência do zod:
   `z.infer` marca todos os campos como opcionais. Ligar `strict` é uma tarefa própria,
